@@ -1,17 +1,21 @@
-const { db } = require("../config/firebase");
-const bcrypt = require("bcryptjs");
+const { db, auth } = require("../config/firebase");
 const jwt = require("jsonwebtoken");
 
 exports.registerUser = async (req, res) => {
   const { fullName, email, password } = req.body;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userRef = db.collection("users").doc();
-    await userRef.set({
+    // **1. Buat user di Firebase Authentication**
+    const userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: fullName,
+    });
+
+    // **2. Simpan user ke Firestore (tanpa password!)**
+    await db.collection("users").doc(userRecord.uid).set({
       fullName,
       email,
-      password: hashedPassword,
       role: "user",
       createdAt: new Date(),
     });

@@ -10,9 +10,12 @@ function initializeFirebase() {
   }
 }
 
-let db;
+initializeFirebase();
+
+let db, auth;
 if (admin.apps.length) {
   db = admin.firestore();
+  auth = admin.auth();
 }
 
-module.exports = { db, initializeFirebase };
+module.exports = { db, auth, initializeFirebase };
