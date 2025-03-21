@@ -1,6 +1,4 @@
 const admin = require("firebase-admin");
-const User = require("../models/userModels.js");
-const { auth } = require("../config/firebase");
 const { getAuth } = require("firebase-admin/auth");
 
 const verifyToken = async (req, res, next) => {
