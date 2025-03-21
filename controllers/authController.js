@@ -1,62 +1,56 @@
 const { db, auth } = require("../config/firebase");
-const jwt = require("jsonwebtoken");
+const { FieldValue } = require("firebase-admin/firestore");
 
 exports.registerUser = async (req, res) => {
   const { fullName, email, password } = req.body;
 
   try {
-    // **1. Buat user di Firebase Authentication**
+    // Create User - Firebase Auth
     const userRecord = await auth.createUser({
       email,
       password,
       displayName: fullName,
     });
 
-    // **2. Simpan user ke Firestore (tanpa password!)**
+    // Simpan data tambahan di Firestore
     await db.collection("users").doc(userRecord.uid).set({
       fullName,
       email,
       role: "user",
-      createdAt: new Date(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({ message: "User registered successfully!" });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 };
 
 exports.loginUser = async (req, res) => {
-  const { email } = req.body;
+  const { idToken } = req.body;
 
   try {
-    const userSnap = await db
-      .collection("users")
-      .where("email", "==", email)
-      .get();
+    // Verifikasi token Firebase
+    const decodedToken = await auth.verifyIdToken(idToken);
 
-    if (userSnap.empty) {
-      return res.status(400).json({ error: "User not found" });
+    // Ambil data user dari Firestore
+    const userSnap = await db.collection("users").doc(decodedToken.uid).get();
+
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "User data not found" });
     }
 
-    const userData = userSnap.docs[0].data();
+    const userData = userSnap.data();
 
-    const token = jwt.sign(
-      { uid: userSnap.docs[0].id, role: userData.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.status(200).json({
-      token,
+    res.json({
       user: {
-        uid: userSnap.docs[0].id,
-        email,
-        fullName: userData.fullName,
+        uid: decodedToken.uid,
+        email: decodedToken.email,
         role: userData.role,
+        fullName: userData.fullName,
       },
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: "Invalid token" });
   }
 };
