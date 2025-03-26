@@ -1,24 +1,26 @@
-const { db, auth } = require("../config/firebase");
-const { FieldValue } = require("firebase-admin/firestore");
+const { auth } = require("../config/firebase");
+const db = require("../config/db"); // koneksi MySQL
+const { v4: uuidv4 } = require("uuid");
 
 exports.registerUser = async (req, res) => {
-  const { fullName, email, password } = req.body;
+  const { fullName, email } = req.body;
 
   try {
-    // Create User - Firebase Auth
+    // Buat user di Firebase
     const userRecord = await auth.createUser({
       email,
-      password,
       displayName: fullName,
     });
 
-    // Simpan data tambahan di Firestore
-    await db.collection("users").doc(userRecord.uid).set({
-      fullName,
-      email,
-      role: "user",
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    // Simpan user ke MySQL tanpa password
+    const userId = uuidv4();
+    const roleId = "role1"; // Default role: user
+    const query = `
+      INSERT INTO users (user_id, fullname, email, role_id)
+      VALUES (?, ?, ?, ?)
+    `;
+
+    await db.execute(query, [userId, fullName, email, roleId]);
 
     res.status(201).json({ message: "User registered successfully!" });
   } catch (error) {
@@ -32,22 +34,26 @@ exports.loginUser = async (req, res) => {
   try {
     // Verifikasi token Firebase
     const decodedToken = await auth.verifyIdToken(idToken);
+    const email = decodedToken.email;
 
-    // Ambil data user dari Firestore
-    const userSnap = await db.collection("users").doc(decodedToken.uid).get();
+    // Ambil data user dari MySQL
+    const [rows] = await db.execute(
+      "SELECT user_id, fullname, email, role_id FROM users WHERE email = ?",
+      [email]
+    );
 
-    if (!userSnap.exists) {
+    if (rows.length === 0) {
       return res.status(404).json({ error: "User data not found" });
     }
 
-    const userData = userSnap.data();
+    const user = rows[0];
 
     res.json({
       user: {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        role: userData.role,
-        fullName: userData.fullName,
+        uid: user.user_id,
+        email: user.email,
+        role: user.role_id,
+        fullName: user.fullname,
       },
     });
   } catch (error) {
