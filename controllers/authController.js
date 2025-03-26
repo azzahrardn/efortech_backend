@@ -1,24 +1,22 @@
 const { auth } = require("../config/firebase");
 const db = require("../config/db"); // koneksi MySQL
-const { v4: uuidv4 } = require("uuid");
 
 exports.registerUser = async (req, res) => {
-  const { fullName, email } = req.body;
+  const { fullName, email, password } = req.body; // Tambahkan password
 
   try {
-    // Buat user di Firebase
+    // Buat user di Firebase dengan password
     const userRecord = await auth.createUser({
       email,
+      password, // Simpan password di Firebase
       displayName: fullName,
     });
 
-    // Simpan user ke MySQL tanpa password
-    const userId = uuidv4();
+    // Simpan user ke MySQL tanpa menyimpan password
+    const userId = userRecord.uid; // Gunakan UID dari Firebase sebagai user_id
     const roleId = "role1"; // Default role: user
-    const query = `
-      INSERT INTO users (user_id, fullname, email, role_id)
-      VALUES (?, ?, ?, ?)
-    `;
+    const query = `INSERT INTO users (user_id, fullname, email, role_id, created_at)
+       VALUES (?, ?, ?, ?, NOW())`;
 
     await db.execute(query, [userId, fullName, email, roleId]);
 
@@ -38,7 +36,10 @@ exports.loginUser = async (req, res) => {
 
     // Ambil data user dari MySQL
     const [rows] = await db.execute(
-      "SELECT user_id, fullname, email, role_id FROM users WHERE email = ?",
+      `SELECT users.user_id, users.fullname, users.email, roles.role_desc 
+       FROM users 
+       JOIN roles ON users.role_id = roles.role_id 
+       WHERE users.email = ?`,
       [email]
     );
 
@@ -52,7 +53,7 @@ exports.loginUser = async (req, res) => {
       user: {
         uid: user.user_id,
         email: user.email,
-        role: user.role_id,
+        role: user.role_desc,
         fullName: user.fullname,
       },
     });
