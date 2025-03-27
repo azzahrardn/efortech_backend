@@ -8,13 +8,6 @@ const app = express();
 app.use(cors({ origin: "http://localhost:3000" }));
 app.use(express.json());
 
-// **Pastikan Firestore sudah terhubung**
-/* if (!db) {
-  console.error("Firestore database not initialized");
-  process.exit(1);
-}
-*/
-
 // Import & gunakan routes
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");

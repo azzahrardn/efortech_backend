@@ -51,10 +51,10 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       user: {
-        uid: user.user_id,
+        user_id: user.user_id,
         email: user.email,
         role: user.role_desc,
-        fullName: user.fullname,
+        fullname: user.fullname,
       },
     });
   } catch (error) {
