@@ -1,24 +1,25 @@
 const { db, auth } = require("../config/firebase");
 const { getAuth } = require("firebase-admin/auth");
-const pool = require("../config/db");
+const pool = require("../config/db"); // PostgreSQL pool (pg)
 
+// Get user profile from PostgreSQL database
 exports.getUserProfile = async (req, res) => {
-  const userId = req.user.uid; // Ambil UID dari token
+  const userId = req.user.uid;
 
   try {
-    const [rows] = await pool.query(
+    const result = await pool.query(
       `SELECT users.user_id, users.fullname, users.email, roles.role_desc 
        FROM users 
        JOIN roles ON users.role_id = roles.role_id 
-       WHERE users.user_id = ?`,
+       WHERE users.user_id = $1`,
       [userId]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const user = rows[0];
+    const user = result.rows[0];
 
     res.status(200).json({
       user_id: user.user_id,
@@ -32,6 +33,7 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
+// Change user password using Firebase Authentication
 exports.changePassword = async (req, res) => {
   const userId = req.user.uid;
   const { currentPassword, newPassword } = req.body;
@@ -49,14 +51,12 @@ exports.changePassword = async (req, res) => {
   }
 
   try {
-    // Ambil user dari Firebase Auth
     const user = await getAuth().getUser(userId);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Update password langsung di Firebase Auth
     await getAuth().updateUser(userId, { password: newPassword });
 
     res.status(200).json({ message: "Password updated successfully" });

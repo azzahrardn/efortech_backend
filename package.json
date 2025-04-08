@@ -18,7 +18,8 @@
     "express": "^4.21.2",
     "firebase-admin": "^13.2.0",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.14.0"
+    "mysql2": "^3.14.0",
+    "pg": "^8.14.1"
   },
   "directories": {
     "doc": "docs"
