@@ -21,6 +21,32 @@ exports.addArticle = async (req, res) => {
         .json({ message: "All required fields must be filled" });
     }
 
+    if (sources && !Array.isArray(sources)) {
+      return res
+        .status(400)
+        .json({ message: "Sources must be an array of objects" });
+    }
+
+    if (sources) {
+      for (const s of sources) {
+        if (!s.preview_text || !s.source_link) {
+          return res.status(400).json({
+            message: "Each source must have preview_text and source_link",
+          });
+        }
+      }
+    }
+
+    if (images && images.length > 3) {
+      return res.status(400).json({ message: "Maximum 3 images allowed" });
+    }
+
+    if (tags && !Array.isArray(tags)) {
+      return res
+        .status(400)
+        .json({ message: "Tags must be an array of strings" });
+    }
+
     const create_date = new Date();
     const generateArticleId = () => {
       const now = new Date();
@@ -37,40 +63,27 @@ exports.addArticle = async (req, res) => {
     };
 
     const article_id = generateArticleId();
-
-    await db.query(
-      `INSERT INTO articles (article_id, title, category, content_body, create_date, admin_id, author)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [article_id, title, category, content_body, create_date, admin_id, author]
+    const parsedImages = (images || []).map((img) =>
+      Buffer.from(img, "base64")
     );
 
-    if (tags?.length) {
-      for (const tag of tags) {
-        await db.query(
-          `INSERT INTO tags (tag_id, article_id, tag_text) VALUES ($1, $2, $3)`,
-          [uuidv4(), article_id, tag]
-        );
-      }
-    }
-
-    if (sources?.length) {
-      for (const source of sources) {
-        await db.query(
-          `INSERT INTO sources (source_id, article_id, preview_text, source_link)
-           VALUES ($1, $2, $3, $4)`,
-          [uuidv4(), article_id, source.preview_text, source.source_link]
-        );
-      }
-    }
-
-    if (images?.length && images.length <= 3) {
-      for (const image of images) {
-        await db.query(
-          `INSERT INTO article_image (image_id, article_id, image) VALUES ($1, $2, $3)`,
-          [uuidv4(), article_id, image]
-        );
-      }
-    }
+    await db.query(
+      `INSERT INTO articles 
+      (article_id, title, category, content_body, create_date, admin_id, author, sources, images, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        article_id,
+        title,
+        category,
+        content_body,
+        create_date,
+        admin_id,
+        author,
+        JSON.stringify(sources || []),
+        parsedImages,
+        tags || [], // langsung simpan sebagai array
+      ]
+    );
 
     res.status(201).json({ message: "Article added successfully", article_id });
   } catch (error) {
@@ -87,22 +100,18 @@ exports.getArticles = async (req, res) => {
     );
 
     for (const article of articles) {
-      const { rows: tags } = await db.query(
-        "SELECT tag_text FROM tags WHERE article_id = $1",
-        [article.article_id]
-      );
-      const { rows: sources } = await db.query(
-        "SELECT preview_text, source_link FROM sources WHERE article_id = $1",
-        [article.article_id]
-      );
-      const { rows: images } = await db.query(
-        "SELECT image FROM article_image WHERE article_id = $1",
-        [article.article_id]
-      );
+      // Convert images from Buffer to base64 strings
+      if (article.images && Array.isArray(article.images)) {
+        article.images = article.images.map((img) =>
+          img ? img.toString("base64") : null
+        );
+      }
 
-      article.tags = tags.map((t) => t.tag_text);
-      article.sources = sources;
-      article.images = images.map((i) => i.image);
+      // Ensure sources is array
+      article.sources = article.sources || [];
+
+      // Ensure tags is array
+      article.tags = article.tags || [];
     }
 
     res.status(200).json(articles);
@@ -117,35 +126,28 @@ exports.getArticleById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { rows: articleResult } = await db.query(
+    const { rows } = await db.query(
       "SELECT * FROM articles WHERE article_id = $1",
       [id]
     );
-    const article = articleResult[0];
+
+    const article = rows[0];
 
     if (!article) {
       return res.status(404).json({ message: "Article not found" });
     }
 
-    const { rows: tags } = await db.query(
-      "SELECT tag_text FROM tags WHERE article_id = $1",
-      [id]
-    );
-    const { rows: sources } = await db.query(
-      "SELECT preview_text, source_link FROM sources WHERE article_id = $1",
-      [id]
-    );
-    const { rows: images } = await db.query(
-      "SELECT image FROM article_image WHERE article_id = $1",
-      [id]
-    );
+    // Convert images from Buffer to base64
+    if (article.images && Array.isArray(article.images)) {
+      article.images = article.images.map((img) =>
+        img ? img.toString("base64") : null
+      );
+    }
 
-    res.status(200).json({
-      ...article,
-      tags: tags.map((t) => t.tag_text),
-      sources,
-      images: images.map((i) => i.image),
-    });
+    article.sources = article.sources || [];
+    article.tags = article.tags || [];
+
+    res.status(200).json(article);
   } catch (error) {
     console.error("Error fetching article:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -157,10 +159,7 @@ exports.deleteArticle = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Delete article, tags, sources, and images
-    await db.query("DELETE FROM article_image WHERE article_id = $1", [id]);
-    await db.query("DELETE FROM tags WHERE article_id = $1", [id]);
-    await db.query("DELETE FROM sources WHERE article_id = $1", [id]);
+    // Gak perlu hapus dari tabel tags lagi, langsung hapus artikel
     await db.query("DELETE FROM articles WHERE article_id = $1", [id]);
 
     res.status(200).json({ message: "Article deleted successfully" });
@@ -177,44 +176,34 @@ exports.updateArticle = async (req, res) => {
     const { title, category, content_body, author, tags, sources, images } =
       req.body;
 
+    const parsedImages = (images || []).map((img) =>
+      Buffer.from(img, "base64")
+    );
+
     const result = await db.query(
-      "UPDATE articles SET title = $1, category = $2, content_body = $3, author = $4 WHERE article_id = $5",
-      [title, category, content_body, author, id]
+      `UPDATE articles 
+       SET title = $1,
+           category = $2,
+           content_body = $3,
+           author = $4,
+           sources = $5,
+           images = $6,
+           tags = $7
+       WHERE article_id = $8`,
+      [
+        title,
+        category,
+        content_body,
+        author,
+        JSON.stringify(sources || []),
+        parsedImages,
+        tags || [],
+        id,
+      ]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ message: "Article not found" });
-    }
-
-    await db.query("DELETE FROM tags WHERE article_id = $1", [id]);
-    await db.query("DELETE FROM sources WHERE article_id = $1", [id]);
-    await db.query("DELETE FROM article_image WHERE article_id = $1", [id]);
-
-    if (tags && tags.length > 0) {
-      for (const tag of tags) {
-        await db.query(
-          "INSERT INTO tags (tag_id, article_id, tag_text) VALUES ($1, $2, $3)",
-          [uuidv4(), id, tag]
-        );
-      }
-    }
-
-    if (sources && sources.length > 0) {
-      for (const source of sources) {
-        await db.query(
-          "INSERT INTO sources (source_id, article_id, preview_text, source_link) VALUES ($1, $2, $3, $4)",
-          [uuidv4(), id, source.preview_text, source.source_link]
-        );
-      }
-    }
-
-    if (images?.length && images.length <= 3) {
-      for (const image of images) {
-        await db.query(
-          "INSERT INTO article_image (image_id, article_id, image) VALUES ($1, $2, $3)",
-          [uuidv4(), id, image]
-        );
-      }
     }
 
     res.status(200).json({ message: "Article updated successfully" });
@@ -235,7 +224,9 @@ exports.searchArticles = async (req, res) => {
     console.log("Searching for:", query);
 
     const { rows: articles } = await db.query(
-      "SELECT * FROM articles WHERE LOWER(title) LIKE LOWER($1) OR LOWER(content_body) LIKE LOWER($2) ORDER BY create_date DESC",
+      `SELECT * FROM articles 
+       WHERE LOWER(title) LIKE LOWER($1) OR LOWER(content_body) LIKE LOWER($2) 
+       ORDER BY create_date DESC`,
       [`%${query}%`, `%${query}%`]
     );
 
@@ -244,22 +235,10 @@ exports.searchArticles = async (req, res) => {
     }
 
     for (const article of articles) {
-      const { rows: tags } = await db.query(
-        "SELECT tag_text FROM tags WHERE article_id = $1",
-        [article.article_id]
-      );
-      const { rows: sources } = await db.query(
-        "SELECT preview_text, source_link FROM sources WHERE article_id = $1",
-        [article.article_id]
-      );
-      const { rows: images } = await db.query(
-        "SELECT image FROM article_image WHERE article_id = $1",
-        [article.article_id]
-      );
-
-      article.tags = tags.map((t) => t.tag_text);
-      article.sources = sources;
-      article.images = images.map((i) => i.image);
+      article.tags = article.tags || [];
+      article.sources = article.sources || [];
+      article.images =
+        article.images?.map((img) => img?.toString("base64")) || [];
     }
 
     res.status(200).json(articles);
@@ -273,29 +252,17 @@ exports.searchArticles = async (req, res) => {
 exports.getArticlesByCategory = async (req, res) => {
   try {
     const { category } = req.params;
-    const result = await db.query(
+
+    const { rows: articles } = await db.query(
       "SELECT * FROM articles WHERE category = $1 ORDER BY create_date DESC",
       [category]
     );
-    const articles = result.rows;
 
     for (const article of articles) {
-      const tagRes = await db.query(
-        "SELECT tag_text FROM tags WHERE article_id = $1",
-        [article.article_id]
-      );
-      const sourceRes = await db.query(
-        "SELECT preview_text, source_link FROM sources WHERE article_id = $1",
-        [article.article_id]
-      );
-      const imageRes = await db.query(
-        "SELECT image FROM article_image WHERE article_id = $1",
-        [article.article_id]
-      );
-
-      article.tags = tagRes.rows.map((t) => t.tag_text);
-      article.sources = sourceRes.rows;
-      article.images = imageRes.rows.map((i) => i.image);
+      article.tags = article.tags || [];
+      article.sources = article.sources || [];
+      article.images =
+        article.images?.map((img) => img?.toString("base64")) || [];
     }
 
     res.status(200).json(articles);
@@ -309,39 +276,39 @@ exports.getArticlesByCategory = async (req, res) => {
 exports.getArticlesByTag = async (req, res) => {
   try {
     const tag_text = req.params.tag_text;
+
+    if (!tag_text || tag_text.trim() === "") {
+      return res.status(400).json({ message: "Tag parameter is required." });
+    }
+
     console.log("Searching for tag:", tag_text);
 
-    const result = await db.query(
-      `SELECT a.* FROM articles a
-       JOIN tags t ON a.article_id = t.article_id
-       WHERE LOWER(t.tag_text) = LOWER($1)
-       ORDER BY a.create_date DESC`,
+    const { rows: articles } = await db.query(
+      `SELECT * FROM articles 
+       WHERE EXISTS (
+         SELECT 1 FROM unnest(tags) AS tag
+         WHERE LOWER(tag) = LOWER($1)
+       )
+       ORDER BY create_date DESC`,
       [tag_text]
     );
-    const articles = result.rows;
+
+    if (!articles || articles.length === 0) {
+      return res
+        .status(404)
+        .json({ message: `No articles found for tag '${tag_text}'.` });
+    }
 
     for (const article of articles) {
-      const tagRes = await db.query(
-        "SELECT tag_text FROM tags WHERE article_id = $1",
-        [article.article_id]
-      );
-      const sourceRes = await db.query(
-        "SELECT preview_text, source_link FROM sources WHERE article_id = $1",
-        [article.article_id]
-      );
-      const imageRes = await db.query(
-        "SELECT image FROM article_image WHERE article_id = $1",
-        [article.article_id]
-      );
-
-      article.tags = tagRes.rows.map((t) => t.tag_text);
-      article.sources = sourceRes.rows;
-      article.images = imageRes.rows.map((i) => i.image);
+      article.tags = article.tags || [];
+      article.sources = article.sources || [];
+      article.images =
+        article.images?.map((img) => img?.toString("base64")) || [];
     }
 
     res.status(200).json(articles);
   } catch (error) {
-    console.error("Error fetching articles by tag:", error);
+    console.error("Error fetching articles by tag:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
