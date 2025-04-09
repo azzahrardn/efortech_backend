@@ -37,6 +37,18 @@ exports.addArticle = async (req, res) => {
       }
     }
 
+    if (images) {
+      for (const [index, base64img] of images.entries()) {
+        const buffer = Buffer.from(base64img, "base64");
+        const sizeInBytes = buffer.length;
+        if (sizeInBytes > 1048576) {
+          return res.status(400).json({
+            message: `Image ${index + 1} is too large. Maximum size is 1MB`,
+          });
+        }
+      }
+    }
+
     if (images && images.length > 3) {
       return res.status(400).json({ message: "Maximum 3 images allowed" });
     }
@@ -105,6 +117,8 @@ exports.getArticles = async (req, res) => {
         article.images = article.images.map((img) =>
           img ? img.toString("base64") : null
         );
+      } else {
+        article.images = [];
       }
 
       // Ensure sources is array
@@ -142,6 +156,8 @@ exports.getArticleById = async (req, res) => {
       article.images = article.images.map((img) =>
         img ? img.toString("base64") : null
       );
+    } else {
+      article.images = [];
     }
 
     article.sources = article.sources || [];
@@ -176,9 +192,9 @@ exports.updateArticle = async (req, res) => {
     const { title, category, content_body, author, tags, sources, images } =
       req.body;
 
-    const parsedImages = (images || []).map((img) =>
-      Buffer.from(img, "base64")
-    );
+    const parsedImages = Array.isArray(images)
+      ? images.map((img) => Buffer.from(img, "base64"))
+      : [];
 
     const result = await db.query(
       `UPDATE articles 
@@ -237,8 +253,11 @@ exports.searchArticles = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images =
-        article.images?.map((img) => img?.toString("base64")) || [];
+      article.images = Array.isArray(article.images)
+        ? article.images.map((img) =>
+            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
+          )
+        : [];
     }
 
     res.status(200).json(articles);
@@ -261,8 +280,11 @@ exports.getArticlesByCategory = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images =
-        article.images?.map((img) => img?.toString("base64")) || [];
+      article.images = Array.isArray(article.images)
+        ? article.images.map((img) =>
+            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
+          )
+        : [];
     }
 
     res.status(200).json(articles);
@@ -302,8 +324,11 @@ exports.getArticlesByTag = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images =
-        article.images?.map((img) => img?.toString("base64")) || [];
+      article.images = Array.isArray(article.images)
+        ? article.images.map((img) =>
+            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
+          )
+        : [];
     }
 
     res.status(200).json(articles);

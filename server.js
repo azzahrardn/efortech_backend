@@ -1,9 +1,14 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const bodyParser = require("body-parser");
 const { auth, db } = require("./config/firebase");
 
 const app = express();
+
+// Middleware
+app.use(bodyParser.json({ limit: "5mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "5mb" }));
 
 app.use(cors({ origin: "http://localhost:3000" }));
 app.use(express.json());
