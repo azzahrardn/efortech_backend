@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { Storage } = require("@google-cloud/storage");
 
 if (!global._firebaseAdmin) {
   global._firebaseAdmin = admin.initializeApp({
@@ -10,5 +11,10 @@ if (!global._firebaseAdmin) {
 
 const db = admin.firestore();
 const auth = admin.auth();
+const storage = new Storage({
+  credentials: JSON.parse(process.env.NEXT_PUBLIC_GOOGLE_KEY_CREDENTIAL),
+});
 
-module.exports = { db, auth };
+const bucket = storage.bucket(process.env.NEXT_PUBLIC_GCS_BUCKET_NAME);
+
+module.exports = { db, auth, storage, bucket };

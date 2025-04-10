@@ -10,6 +10,7 @@ const {
   getArticlesByTag,
 } = require("../controllers/articleController");
 
+const uploadFile = require("../middlewares/imageUpload");
 const router = express.Router();
 
 // Endpoint for adding an article
@@ -35,5 +36,17 @@ router.delete("/:id", deleteArticle);
 
 // Endpoint for updating an article by ID
 router.put("/update/:id", updateArticle);
+
+// Endpoint for uploading an image
+router.post("/upload-image", uploadFile, (req, res) => {
+  if (
+    !req.files ||
+    req.files.length === 0 ||
+    !req.files[0].cloudStoragePublicUrl
+  ) {
+    return res.status(400).json({ message: "Failed Upload" });
+  }
+  res.status(200).json({ imageUrl: req.files[0].cloudStoragePublicUrl });
+});
 
 module.exports = router;

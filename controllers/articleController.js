@@ -4,16 +4,12 @@ const { v4: uuidv4 } = require("uuid");
 // Add article
 exports.addArticle = async (req, res) => {
   try {
-    const {
-      title,
-      category,
-      content_body,
-      admin_id,
-      author,
-      tags,
-      sources,
-      images,
-    } = req.body;
+    const { title, category, content_body, admin_id, author } = req.body;
+
+    const parsedSources = Array.isArray(req.body.sources)
+      ? req.body.sources
+      : [];
+    const parsedTags = Array.isArray(req.body.tags) ? req.body.tags : [];
 
     if (!title || !category || !content_body || !admin_id || !author) {
       return res
@@ -21,48 +17,29 @@ exports.addArticle = async (req, res) => {
         .json({ message: "All required fields must be filled" });
     }
 
-    if (sources && !Array.isArray(sources)) {
-      return res
-        .status(400)
-        .json({ message: "Sources must be an array of objects" });
+    // Sources validation
+    if (
+      !Array.isArray(parsedSources) ||
+      parsedSources.some((src) => !src.preview_text || !src.source_link)
+    ) {
+      return res.status(400).json({
+        message:
+          "Sources must be an array of objects with preview_text and source_link",
+      });
     }
 
-    if (sources) {
-      for (const s of sources) {
-        if (!s.preview_text || !s.source_link) {
-          return res.status(400).json({
-            message: "Each source must have preview_text and source_link",
-          });
-        }
-      }
-    }
-
-    if (images) {
-      for (const [index, base64img] of images.entries()) {
-        const buffer = Buffer.from(base64img, "base64");
-        const sizeInBytes = buffer.length;
-        if (sizeInBytes > 1048576) {
-          return res.status(400).json({
-            message: `Image ${index + 1} is too large. Maximum size is 1MB`,
-          });
-        }
-      }
-    }
-
-    if (images && images.length > 3) {
-      return res.status(400).json({ message: "Maximum 3 images allowed" });
-    }
-
-    if (tags && !Array.isArray(tags)) {
+    // Tags validation
+    if (!Array.isArray(parsedTags)) {
       return res
         .status(400)
         .json({ message: "Tags must be an array of strings" });
     }
 
+    // article_id generation
     const create_date = new Date();
     const generateArticleId = () => {
       const now = new Date();
-      now.setHours(now.getHours() + 7); // WIB
+      now.setHours(now.getHours() + 7);
       const timestamp = now
         .toISOString()
         .replace(/[-T:.Z]/g, "")
@@ -75,9 +52,12 @@ exports.addArticle = async (req, res) => {
     };
 
     const article_id = generateArticleId();
-    const parsedImages = (images || []).map((img) =>
-      Buffer.from(img, "base64")
-    );
+
+    const imageUrls = Array.isArray(req.body.images)
+      ? req.body.images.filter(
+          (url) => typeof url === "string" && url.startsWith("http")
+        )
+      : [];
 
     await db.query(
       `INSERT INTO articles 
@@ -91,9 +71,9 @@ exports.addArticle = async (req, res) => {
         create_date,
         admin_id,
         author,
-        JSON.stringify(sources || []),
-        parsedImages,
-        tags || [], // langsung simpan sebagai array
+        JSON.stringify(parsedSources),
+        imageUrls,
+        parsedTags,
       ]
     );
 
@@ -114,9 +94,7 @@ exports.getArticles = async (req, res) => {
     for (const article of articles) {
       // Convert images from Buffer to base64 strings
       if (article.images && Array.isArray(article.images)) {
-        article.images = article.images.map((img) =>
-          img ? img.toString("base64") : null
-        );
+        article.images = Array.isArray(article.images) ? article.images : [];
       } else {
         article.images = [];
       }
@@ -153,9 +131,7 @@ exports.getArticleById = async (req, res) => {
 
     // Convert images from Buffer to base64
     if (article.images && Array.isArray(article.images)) {
-      article.images = article.images.map((img) =>
-        img ? img.toString("base64") : null
-      );
+      article.images = Array.isArray(article.images) ? article.images : [];
     } else {
       article.images = [];
     }
@@ -192,8 +168,35 @@ exports.updateArticle = async (req, res) => {
     const { title, category, content_body, author, tags, sources, images } =
       req.body;
 
-    const parsedImages = Array.isArray(images)
-      ? images.map((img) => Buffer.from(img, "base64"))
+    if (!title || !category || !content_body || !author) {
+      return res
+        .status(400)
+        .json({ message: "All required fields must be filled" });
+    }
+
+    // Sources validation
+    if (
+      !Array.isArray(sources) ||
+      sources.some((src) => !src.preview_text || !src.source_link)
+    ) {
+      return res.status(400).json({
+        message:
+          "Sources must be an array of objects with preview_text and source_link",
+      });
+    }
+
+    // Tags validation
+    if (!Array.isArray(tags)) {
+      return res
+        .status(400)
+        .json({ message: "Tags must be an array of strings" });
+    }
+
+    // Image URL validation (optional, just clean)
+    const imageUrls = Array.isArray(images)
+      ? images.filter(
+          (url) => typeof url === "string" && url.startsWith("http")
+        )
       : [];
 
     const result = await db.query(
@@ -212,7 +215,7 @@ exports.updateArticle = async (req, res) => {
         content_body,
         author,
         JSON.stringify(sources || []),
-        parsedImages,
+        imageUrls,
         tags || [],
         id,
       ]
@@ -241,7 +244,7 @@ exports.searchArticles = async (req, res) => {
 
     const { rows: articles } = await db.query(
       `SELECT * FROM articles 
-       WHERE LOWER(title) LIKE LOWER($1) OR LOWER(content_body) LIKE LOWER($2) 
+       WHERE title ILIKE $1 OR content_body ILIKE $2 
        ORDER BY create_date DESC`,
       [`%${query}%`, `%${query}%`]
     );
@@ -253,11 +256,7 @@ exports.searchArticles = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images = Array.isArray(article.images)
-        ? article.images.map((img) =>
-            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
-          )
-        : [];
+      article.images = Array.isArray(article.images) ? article.images : [];
     }
 
     res.status(200).json(articles);
@@ -280,11 +279,7 @@ exports.getArticlesByCategory = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images = Array.isArray(article.images)
-        ? article.images.map((img) =>
-            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
-          )
-        : [];
+      article.images = Array.isArray(article.images) ? article.images : [];
     }
 
     res.status(200).json(articles);
@@ -324,11 +319,7 @@ exports.getArticlesByTag = async (req, res) => {
     for (const article of articles) {
       article.tags = article.tags || [];
       article.sources = article.sources || [];
-      article.images = Array.isArray(article.images)
-        ? article.images.map((img) =>
-            img ? `data:image/jpeg;base64,${img.toString("base64")}` : null
-          )
-        : [];
+      article.images = Array.isArray(article.images) ? article.images : [];
     }
 
     res.status(200).json(articles);
