@@ -18,11 +18,13 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const articleRoutes = require("./routes/articleRoutes");
+const manageAdminRoutes = require("./routes/manageAdminRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/articles", articleRoutes);
+app.use("/api/manageadmin", manageAdminRoutes);
 
 // Test API
 app.get("/api/message", (req, res) => {
