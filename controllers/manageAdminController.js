@@ -16,30 +16,49 @@ const getFirebaseUserByEmail = async (email) => {
 exports.createAdmin = async (req, res) => {
   const { email, role_id } = req.body;
 
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
   if (!["role2", "role3"].includes(role_id)) {
-    return res
-      .status(400)
-      .json({ error: "Invalid role_id. Use role2 or role3." });
+    return res.status(400).json({
+      error: "Invalid role_id. Use 'role2' (admin) or 'role3' (superadmin).",
+    });
   }
 
   try {
-    // Check Firebase user
-    const firebaseUser = await getFirebaseUserByEmail(email);
+    // 1. Check if Firebase user exists
+    let firebaseUser;
+    try {
+      firebaseUser = await getFirebaseUserByEmail(email);
+    } catch (firebaseError) {
+      return res.status(404).json({ error: "User not found in Database" });
+    }
+
     const userId = firebaseUser.uid;
 
-    // Check if user exists in local db and is currently just a user (role1)
+    // 2. Check if user exists in local DB and has role1 (user)
     const userResult = await db.query(
-      `SELECT * FROM users WHERE user_id = $1 AND role_id = 'role1'`,
+      `SELECT * FROM users WHERE user_id = $1`,
       [userId]
     );
 
     if (userResult.rowCount === 0) {
       return res
         .status(404)
-        .json({ error: "User not found or not eligible to become admin" });
+        .json({ error: "User not found in internal database" });
     }
 
-    // Check if admin record already exists
+    const currentRole = userResult.rows[0].role_id;
+
+    if (currentRole !== "role1") {
+      return res.status(400).json({
+        error: `User already has role '${currentRole}', try to update instead`,
+      });
+    }
+
+    // 3. Check if admin record already exists and is active
     const existingAdmin = await db.query(
       `SELECT status FROM admin WHERE admin_id = $1`,
       [userId]
@@ -47,24 +66,24 @@ exports.createAdmin = async (req, res) => {
 
     if (
       existingAdmin.rowCount > 0 &&
-      existingAdmin.rows[0].status === "active"
+      existingAdmin.rows[0].status === "Active"
     ) {
       return res.status(400).json({ error: "User is already an active admin" });
     }
 
-    // Update role_id in users table
+    // 4. Update user's role to admin
     await db.query(`UPDATE users SET role_id = $1 WHERE user_id = $2`, [
       role_id,
       userId,
     ]);
 
-    // Insert or update (reactivate) into admin table
+    // 5. Insert or reactivate admin record
     await db.query(
       `INSERT INTO admin (admin_id, created_date, last_updated, status)
-       VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')
+       VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Active')
        ON CONFLICT (admin_id)
        DO UPDATE SET 
-         status = 'active',
+         status = 'Active',
          last_updated = CURRENT_TIMESTAMP`,
       [userId]
     );
@@ -74,7 +93,9 @@ exports.createAdmin = async (req, res) => {
       .json({ message: "Admin created or reactivated successfully" });
   } catch (error) {
     console.error("Create admin error:", error);
-    res.status(500).json({ error: "Failed to create admin" });
+    res
+      .status(500)
+      .json({ error: "Internal server error while creating admin" });
   }
 };
 
@@ -126,14 +147,14 @@ exports.deleteAdmin = async (req, res) => {
     if (user.rowCount === 0) {
       return res
         .status(404)
-        .json({ error: "Admin not found or already inactive" });
+        .json({ error: "Admin not found or already Inactive" });
     }
 
     await db.query(`UPDATE users SET role_id = 'role1' WHERE user_id = $1`, [
       admin_id,
     ]);
     await db.query(
-      `UPDATE admin SET status = 'inactive', last_updated = CURRENT_TIMESTAMP WHERE admin_id = $1`,
+      `UPDATE admin SET status = 'Inactive', last_updated = CURRENT_TIMESTAMP WHERE admin_id = $1`,
       [admin_id]
     );
 
