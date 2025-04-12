@@ -8,14 +8,14 @@ const {
   deleteAdmin,
 } = require("../controllers/manageAdminController");
 
+// POST - Create Admin
+router.post("/create", createAdmin);
+
 // GET - All Admins (with optional filters)
 router.get("/list", getAdmins);
 
 // GET - Admin by ID
 router.get("/:admin_id", getAdminById);
-
-// POST - Create Admin
-router.post("/create", createAdmin);
 
 // PUT - Update Admin Role
 router.put("/update/:admin_id", updateAdmin);
