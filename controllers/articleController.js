@@ -1,5 +1,14 @@
 const db = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
+const {
+  sendSuccessResponse,
+  sendCreatedResponse,
+  sendBadRequestResponse,
+  sendUnauthorizedResponse,
+  sendForbiddenResponse,
+  sendNotFoundResponse,
+  sendErrorResponse,
+} = require("../utils/responseUtils");
 
 // Add article
 exports.addArticle = async (req, res) => {
@@ -12,9 +21,7 @@ exports.addArticle = async (req, res) => {
     const parsedTags = Array.isArray(req.body.tags) ? req.body.tags : [];
 
     if (!title || !category || !content_body || !admin_id || !author) {
-      return res
-        .status(400)
-        .json({ message: "All required fields must be filled" });
+      return sendBadRequestResponse(res, "Missing required fields");
     }
 
     // Sources validation
@@ -22,17 +29,15 @@ exports.addArticle = async (req, res) => {
       !Array.isArray(parsedSources) ||
       parsedSources.some((src) => !src.preview_text || !src.source_link)
     ) {
-      return res.status(400).json({
-        message:
-          "Sources must be an array of objects with preview_text and source_link",
-      });
+      return sendBadRequestResponse(
+        res,
+        "Sources must be an array of objects with preview_text and source_link"
+      );
     }
 
     // Tags validation
     if (!Array.isArray(parsedTags)) {
-      return res
-        .status(400)
-        .json({ message: "Tags must be an array of strings" });
+      return sendBadRequestResponse(res, "Tags must be an array of strings");
     }
 
     // article_id generation
@@ -77,10 +82,10 @@ exports.addArticle = async (req, res) => {
       ]
     );
 
-    res.status(201).json({ message: "Article added successfully", article_id });
+    sendCreatedResponse(res, "GENERAL_SUCCESS", { article_id });
   } catch (error) {
     console.error("Error adding article:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -106,10 +111,10 @@ exports.getArticles = async (req, res) => {
       article.tags = article.tags || [];
     }
 
-    res.status(200).json(articles);
+    sendSuccessResponse(res, "FETCH_SUCCESS", articles);
   } catch (error) {
     console.error("Error fetching articles:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -126,7 +131,7 @@ exports.getArticleById = async (req, res) => {
     const article = rows[0];
 
     if (!article) {
-      return res.status(404).json({ message: "Article not found" });
+      return sendNotFoundResponse(res, "GENERAL_ERROR");
     }
 
     // Convert images from Buffer to base64
@@ -139,10 +144,10 @@ exports.getArticleById = async (req, res) => {
     article.sources = article.sources || [];
     article.tags = article.tags || [];
 
-    res.status(200).json(article);
+    sendSuccessResponse(res, "FETCH_SUCCESS", article);
   } catch (error) {
     console.error("Error fetching article:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -154,10 +159,10 @@ exports.deleteArticle = async (req, res) => {
     // Gak perlu hapus dari tabel tags lagi, langsung hapus artikel
     await db.query("DELETE FROM articles WHERE article_id = $1", [id]);
 
-    res.status(200).json({ message: "Article deleted successfully" });
+    sendSuccessResponse(res, "GENERAL_SUCCESS");
   } catch (error) {
     console.error("Error deleting article:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -169,9 +174,7 @@ exports.updateArticle = async (req, res) => {
       req.body;
 
     if (!title || !category || !content_body || !author) {
-      return res
-        .status(400)
-        .json({ message: "All required fields must be filled" });
+      return sendBadRequestResponse(res, "All required fields must be filled");
     }
 
     // Sources validation
@@ -179,17 +182,15 @@ exports.updateArticle = async (req, res) => {
       !Array.isArray(sources) ||
       sources.some((src) => !src.preview_text || !src.source_link)
     ) {
-      return res.status(400).json({
-        message:
-          "Sources must be an array of objects with preview_text and source_link",
-      });
+      return sendBadRequestResponse(
+        res,
+        "Sources must be an array of objects with preview_text and source_link"
+      );
     }
 
     // Tags validation
     if (!Array.isArray(tags)) {
-      return res
-        .status(400)
-        .json({ message: "Tags must be an array of strings" });
+      return sendBadRequestResponse(res, "Tags must be an array of strings");
     }
 
     // Image URL validation (optional, just clean)
@@ -222,13 +223,13 @@ exports.updateArticle = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Article not found" });
+      return sendNotFoundResponse(res, "GENERAL_ERROR");
     }
 
-    res.status(200).json({ message: "Article updated successfully" });
+    sendSuccessResponse(res, "GENERAL_SUCCESS");
   } catch (error) {
     console.error("Error updating article:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -237,7 +238,7 @@ exports.searchArticles = async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) {
-      return res.status(400).json({ message: "Query parameter is required" });
+      return sendBadRequestResponse(res, "Query parameter is required");
     }
 
     console.log("Searching for:", query);
@@ -250,7 +251,7 @@ exports.searchArticles = async (req, res) => {
     );
 
     if (articles.length === 0) {
-      return res.status(404).json({ message: "Article not found" });
+      return sendNotFoundResponse(res, "Article not found");
     }
 
     for (const article of articles) {
@@ -259,10 +260,10 @@ exports.searchArticles = async (req, res) => {
       article.images = Array.isArray(article.images) ? article.images : [];
     }
 
-    res.status(200).json(articles);
+    sendSuccessResponse(res, "FETCH_SUCCESS", articles);
   } catch (error) {
     console.error("Error searching articles:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -282,10 +283,10 @@ exports.getArticlesByCategory = async (req, res) => {
       article.images = Array.isArray(article.images) ? article.images : [];
     }
 
-    res.status(200).json(articles);
+    sendSuccessResponse(res, "FETCH_SUCCESS", articles);
   } catch (error) {
     console.error("Error fetching articles by category:", error);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
 
@@ -295,7 +296,7 @@ exports.getArticlesByTag = async (req, res) => {
     const tag_text = req.params.tag_text;
 
     if (!tag_text || tag_text.trim() === "") {
-      return res.status(400).json({ message: "Tag parameter is required." });
+      return sendBadRequestResponse(res, "Tag parameter is required.");
     }
 
     console.log("Searching for tag:", tag_text);
@@ -311,9 +312,10 @@ exports.getArticlesByTag = async (req, res) => {
     );
 
     if (!articles || articles.length === 0) {
-      return res
-        .status(404)
-        .json({ message: `No articles found for tag '${tag_text}'.` });
+      return sendNotFoundResponse(
+        res,
+        `No articles found for tag '${tag_text}'.`
+      );
     }
 
     for (const article of articles) {
@@ -322,9 +324,9 @@ exports.getArticlesByTag = async (req, res) => {
       article.images = Array.isArray(article.images) ? article.images : [];
     }
 
-    res.status(200).json(articles);
+    sendSuccessResponse(res, "FETCH_SUCCESS", articles);
   } catch (error) {
     console.error("Error fetching articles by tag:", error.message);
-    res.status(500).json({ message: "Internal server error" });
+    sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
