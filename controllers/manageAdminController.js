@@ -1,6 +1,21 @@
 const db = require("../config/db");
 const admin = require("firebase-admin");
 const { getAuth } = require("firebase-admin/auth");
+const {
+  sendSuccessResponse,
+  sendCreatedResponse,
+  sendBadRequestResponse,
+  sendUnauthorizedResponse,
+  sendForbiddenResponse,
+  sendNotFoundResponse,
+  sendErrorResponse,
+} = require("../utils/responseUtils");
+
+const roleMap = {
+  role1: "User",
+  role2: "Admin",
+  role3: "Superadmin",
+};
 
 // Utility function to get user by email from Firebase
 const getFirebaseUserByEmail = async (email) => {
@@ -18,47 +33,45 @@ exports.createAdmin = async (req, res) => {
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   if (!isValidEmail(email)) {
-    return res.status(400).json({ error: "Invalid email format" });
+    return sendBadRequestResponse(res, "Invalid email format");
   }
 
   if (!["role2", "role3"].includes(role_id)) {
-    return res.status(400).json({
-      error: "Invalid role_id. Use 'role2' (admin) or 'role3' (superadmin).",
-    });
+    return sendBadRequestResponse(
+      res,
+      "Invalid role_id. Use 'role2' (admin) or 'role3' (superadmin)."
+    );
   }
 
   try {
-    // 1. Check if Firebase user exists
     let firebaseUser;
     try {
       firebaseUser = await getFirebaseUserByEmail(email);
     } catch (firebaseError) {
-      return res.status(404).json({ error: "User not found in Database" });
+      return sendNotFoundResponse(res, "User not found in Database");
     }
 
     const userId = firebaseUser.uid;
 
-    // 2. Check if user exists in local DB and has role1 (user)
     const userResult = await db.query(
       `SELECT * FROM users WHERE user_id = $1`,
       [userId]
     );
 
     if (userResult.rowCount === 0) {
-      return res
-        .status(404)
-        .json({ error: "User not found in internal database" });
+      return sendNotFoundResponse(res, "User not found in internal database");
     }
 
     const currentRole = userResult.rows[0].role_id;
 
     if (currentRole !== "role1") {
-      return res.status(400).json({
-        error: `User already has role '${currentRole}', try to update instead`,
-      });
+      const roleName = roleMap[currentRole];
+      return sendBadRequestResponse(
+        res,
+        `User already has role '${roleName}', try to Edit instead`
+      );
     }
 
-    // 3. Check if admin record already exists and is active
     const existingAdmin = await db.query(
       `SELECT status FROM admin WHERE admin_id = $1`,
       [userId]
@@ -68,16 +81,14 @@ exports.createAdmin = async (req, res) => {
       existingAdmin.rowCount > 0 &&
       existingAdmin.rows[0].status === "Active"
     ) {
-      return res.status(400).json({ error: "User is already an active admin" });
+      return sendBadRequestResponse(res, "User is already an active admin");
     }
 
-    // 4. Update user's role to admin
     await db.query(`UPDATE users SET role_id = $1 WHERE user_id = $2`, [
       role_id,
       userId,
     ]);
 
-    // 5. Insert or reactivate admin record
     await db.query(
       `INSERT INTO admin (admin_id, created_date, last_updated, status)
        VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Active')
@@ -88,14 +99,13 @@ exports.createAdmin = async (req, res) => {
       [userId]
     );
 
-    res
-      .status(201)
-      .json({ message: "Admin created or reactivated successfully" });
+    return sendCreatedResponse(res, "Admin data created successfully.", {
+      user_id: userId,
+      message: "Admin created or reactivated",
+    });
   } catch (error) {
     console.error("Create admin error:", error);
-    res
-      .status(500)
-      .json({ error: "Internal server error while creating admin" });
+    return sendErrorResponse(res, "Failed to create admin");
   }
 };
 
@@ -105,33 +115,36 @@ exports.updateAdmin = async (req, res) => {
   const { new_role_id } = req.body;
 
   if (!["role2", "role3"].includes(new_role_id)) {
-    return res.status(400).json({ error: "Invalid role_id" });
+    return sendBadRequestResponse(res, "Invalid role_id");
   }
 
   try {
-    // Check if admin_id is a valid admin
     const user = await db.query(
       `SELECT * FROM users WHERE user_id = $1 AND role_id IN ('role2', 'role3')`,
       [admin_id]
     );
+
     if (user.rowCount === 0) {
-      return res.status(404).json({ error: "Admin not found or not valid" });
+      return sendNotFoundResponse(res, "Admin not found or not valid");
     }
 
-    // Update role and admin table
     await db.query(`UPDATE users SET role_id = $1 WHERE user_id = $2`, [
       new_role_id,
       admin_id,
     ]);
+
     await db.query(
-      `UPDATE admin SET last_updated = CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta' WHERE admin_id = $1`,
+      `UPDATE admin SET last_updated = CURRENT_TIMESTAMP WHERE admin_id = $1`,
       [admin_id]
     );
 
-    res.status(200).json({ message: "Admin role updated" });
+    return sendSuccessResponse(res, "Admin data updated successfuly!", {
+      admin_id,
+      new_role_id,
+    });
   } catch (error) {
     console.error("Update admin error:", error);
-    res.status(500).json({ error: "Failed to update admin" });
+    return sendErrorResponse(res, "Failed to update admin");
   }
 };
 
@@ -145,29 +158,67 @@ exports.deleteAdmin = async (req, res) => {
       [admin_id]
     );
     if (user.rowCount === 0) {
-      return res
-        .status(404)
-        .json({ error: "Admin not found or already Inactive" });
+      return sendNotFoundResponse(res, "Admin not found or already Inactive");
     }
 
     await db.query(`UPDATE users SET role_id = 'role1' WHERE user_id = $1`, [
       admin_id,
     ]);
+
     await db.query(
       `UPDATE admin SET status = 'Inactive', last_updated = CURRENT_TIMESTAMP WHERE admin_id = $1`,
       [admin_id]
     );
 
-    res.status(200).json({ message: "Admin removed (soft delete)" });
+    return sendSuccessResponse(res, "Admin data deleted successfully!", {
+      admin_id,
+      status: "Inactive",
+    });
   } catch (error) {
     console.error("Delete admin error:", error);
-    res.status(500).json({ error: "Failed to remove admin" });
+    return sendErrorResponse(res, "Failed to remove admin");
+  }
+};
+
+// Soft Delete Multiple Admins
+exports.deleteMultipleAdmins = async (req, res) => {
+  const { admin_ids } = req.body;
+
+  if (!Array.isArray(admin_ids) || admin_ids.length === 0) {
+    return sendErrorResponse(res, "No admin IDs provided.");
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    for (const admin_id of admin_ids) {
+      await client.query(
+        `UPDATE users SET role_id = 'role1' WHERE user_id = $1`,
+        [admin_id]
+      );
+
+      await client.query(
+        `UPDATE admin SET status = 'Inactive', last_updated = CURRENT_TIMESTAMP WHERE admin_id = $1`,
+        [admin_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    return sendSuccessResponse(res, "Selected admins have been soft deleted.");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Delete multiple admins error:", error);
+    return sendErrorResponse(res, "Failed to delete selected admins.");
+  } finally {
+    client.release();
   }
 };
 
 // Get All Admins with optional filters
 exports.getAdmins = async (req, res) => {
   const { name, email, id, role, status } = req.query;
+
   const formatWIB = (dateStr) => {
     if (!dateStr) return null;
     return new Intl.DateTimeFormat("id-ID", {
@@ -213,13 +264,6 @@ exports.getAdmins = async (req, res) => {
   try {
     const result = await db.query(query, params);
 
-    // Mapping role_id → readable role name
-    const roleMap = {
-      role1: "User",
-      role2: "Admin",
-      role3: "Superadmin",
-    };
-
     const enrichedAdmins = await Promise.all(
       result.rows.map(async (admin) => {
         let lastLogin = null;
@@ -240,10 +284,10 @@ exports.getAdmins = async (req, res) => {
       })
     );
 
-    res.status(200).json(enrichedAdmins);
+    return sendSuccessResponse(res, "FETCH_SUCCESS", enrichedAdmins);
   } catch (error) {
     console.error("Fetch admins error:", error);
-    res.status(500).json({ error: "Failed to fetch admins" });
+    return sendErrorResponse(res, "Failed to fetch admins");
   }
 };
 
@@ -261,12 +305,46 @@ exports.getAdminById = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Admin not found" });
+      return sendNotFoundResponse(res, "Admin not found");
     }
 
-    res.status(200).json(result.rows[0]);
+    return sendSuccessResponse(res, "FETCH_SUCCESS", result.rows[0]);
   } catch (error) {
     console.error("Get admin by ID error:", error);
-    res.status(500).json({ error: "Failed to get admin" });
+    return sendErrorResponse(res, "Failed to get admin");
+  }
+};
+
+// Search User by Email
+exports.searchUserByEmail = async (req, res) => {
+  const { email } = req.query;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return sendBadRequestResponse(res, "Invalid email format.");
+  }
+
+  try {
+    const user = await getFirebaseUserByEmail(email);
+
+    const dbResult = await db.query("SELECT * FROM users WHERE user_id = $1", [
+      user.uid,
+    ]);
+
+    if (dbResult.rows.length === 0) {
+      return sendNotFoundResponse(res, "User not found in database.");
+    }
+
+    const dbUser = dbResult.rows[0];
+
+    const result = {
+      user_id: user.uid,
+      email: user.email,
+      fullname: dbUser.fullname,
+      role_id: dbUser.role_id,
+    };
+
+    return sendSuccessResponse(res, "User found.", result);
+  } catch (error) {
+    return sendNotFoundResponse(res, error.message || "User not found.");
   }
 };
