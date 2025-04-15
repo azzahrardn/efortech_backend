@@ -1,6 +1,12 @@
-const { db, auth } = require("../config/firebase");
 const { getAuth } = require("firebase-admin/auth");
 const pool = require("../config/db"); // PostgreSQL pool (pg)
+const uploadFile = require("../middlewares/imageUpload");
+const { v4: uuidv4 } = require("uuid");
+const {
+  sendSuccessResponse,
+  sendErrorResponse,
+  sendBadRequestResponse,
+} = require("../utils/responseUtils");
 
 // Get user profile from PostgreSQL database
 exports.getUserProfile = async (req, res) => {
@@ -63,5 +69,55 @@ exports.changePassword = async (req, res) => {
   } catch (error) {
     console.error("Change password error:", error);
     res.status(500).json({ error: "Failed to change password" });
+  }
+};
+
+// Edit user profile
+exports.updateUserProfile = async (req, res) => {
+  const userId = req.user.uid;
+  const { fullName, institution, phoneNumber, gender, birthdate, userPhoto } =
+    req.body;
+
+  if (!fullName) {
+    return sendBadRequestResponse(res, "Full name is required");
+  }
+
+  let genderValue;
+  if (gender === "Male") genderValue = 1;
+  else if (gender === "Female") genderValue = 2;
+  else genderValue = null;
+
+  const queryParams = [
+    fullName,
+    institution || null,
+    phoneNumber || null,
+    genderValue,
+    birthdate || null,
+    userPhoto || null,
+    userId,
+  ];
+
+  const updateQuery = `
+  UPDATE users 
+  SET fullname = $1, institution = $2, phone_number = $3, gender = $4, birthdate = $5, user_photo = $6
+  WHERE user_id = $7
+  RETURNING *;
+  `;
+
+  try {
+    const result = await pool.query(updateQuery, queryParams);
+
+    if (result.rowCount === 0) {
+      return sendErrorResponse(res, "User not found");
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Profile updated successfully",
+      result.rows[0]
+    );
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    return sendErrorResponse(res, "Failed to update profile");
   }
 };
