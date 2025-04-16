@@ -22,12 +22,12 @@ exports.getUserProfile = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return sendNotFoundResponse(res, "User not found");
     }
 
     const user = result.rows[0];
 
-    res.status(200).json({
+    return sendSuccessResponse(res, "User profile fetched successfully", {
       user_id: user.user_id,
       email: user.email,
       role: user.role_desc,
@@ -35,7 +35,7 @@ exports.getUserProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
-    res.status(500).json({ error: "Failed to fetch user data" });
+    return sendErrorResponse(res, "Failed to fetch user data");
   }
 };
 
@@ -45,30 +45,29 @@ exports.changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
-    return res
-      .status(400)
-      .json({ error: "Current and new password are required" });
+    return sendBadRequestResponse(res, "Current and new password are required");
   }
 
   if (newPassword.length < 8) {
-    return res
-      .status(400)
-      .json({ error: "New password must be at least 8 characters" });
+    return sendBadRequestResponse(
+      res,
+      "New password must be at least 8 characters"
+    );
   }
 
   try {
     const user = await getAuth().getUser(userId);
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return sendNotFoundResponse(res, "User not found");
     }
 
     await getAuth().updateUser(userId, { password: newPassword });
 
-    res.status(200).json({ message: "Password updated successfully" });
+    return sendSuccessResponse(res, "Password updated successfully");
   } catch (error) {
     console.error("Change password error:", error);
-    res.status(500).json({ error: "Failed to change password" });
+    return sendErrorResponse(res, "Failed to change password");
   }
 };
 
