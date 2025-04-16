@@ -9,6 +9,10 @@ const {
   getArticlesByCategory,
   getArticlesByTag,
 } = require("../controllers/articleController");
+const {
+  sendSuccessResponse,
+  sendErrorResponse,
+} = require("../utils/responseUtils");
 
 const uploadFile = require("../middlewares/imageUpload");
 const router = express.Router();
@@ -44,9 +48,11 @@ router.post("/upload-image", uploadFile, (req, res) => {
     req.files.length === 0 ||
     !req.files[0].cloudStoragePublicUrl
   ) {
-    return res.status(400).json({ message: "Failed Upload" });
+    return sendErrorResponse(res, "Failed Upload");
   }
-  res.status(200).json({ imageUrl: req.files[0].cloudStoragePublicUrl });
+  return sendSuccessResponse(res, "Upload successful", {
+    imageUrl: req.files[0].cloudStoragePublicUrl,
+  });
 });
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const multer = require("multer");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
+const { errorResponse } = require("../utils/responseUtils");
 
 const storage = new Storage({
   credentials: JSON.parse(process.env.NEXT_PUBLIC_GOOGLE_KEY_CREDENTIAL),
@@ -26,18 +27,20 @@ const uploadFile = (req, res, next) => {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res
           .status(400)
-          .json({ message: "File size exceeds the 1MB limit" });
+          .json(errorResponse("File size exceeds the 1MB limit"));
       }
       if (err.message === "File must be an image") {
         return res
           .status(400)
-          .json({ message: "Only image files are allowed" });
+          .json(errorResponse("Only image files are allowed"));
       }
-      return res.status(400).json({ status: "fail", error: err.message });
+      return res
+        .status(400)
+        .json(errorResponse(err.message || "File upload error"));
     }
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "No image uploaded" });
+      return res.status(400).json(errorResponse("No image uploaded"));
     }
 
     try {
@@ -65,14 +68,11 @@ const uploadFile = (req, res, next) => {
         });
       }
 
-      // Assign file URLs to req.files
       req.files = uploadedFiles;
       next();
     } catch (uploadError) {
       console.error("Upload error:", uploadError);
-      return res
-        .status(500)
-        .json({ status: "fail", error: "Failed to upload images" });
+      return res.status(500).json(errorResponse("Failed to upload images"));
     }
   });
 };
