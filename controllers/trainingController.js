@@ -29,6 +29,7 @@ exports.addTraining = async (req, res) => {
       term_condition,
       level,
       status,
+      admin_id,
     } = req.body;
 
     const parsedSkills = Array.isArray(req.body.skills) ? req.body.skills : [];
@@ -42,7 +43,8 @@ exports.addTraining = async (req, res) => {
       validity_period == null ||
       term_condition == null ||
       level == null ||
-      status == null
+      status == null ||
+      admin_id == null
     ) {
       return sendBadRequestResponse(res, "Missing required fields");
     }
@@ -76,8 +78,8 @@ exports.addTraining = async (req, res) => {
       : [];
 
     await db.query(
-      `INSERT INTO training (training_id, training_name, description, duration, training_fees, discount, validity_period, term_condition, level, status, skills, images)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO training (training_id, training_name, description, duration, training_fees, discount, validity_period, term_condition, level, status, skills, images, created_by, created_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)`,
       [
         training_id,
         training_name,
@@ -91,6 +93,7 @@ exports.addTraining = async (req, res) => {
         status,
         parsedSkills,
         imageUrls,
+        admin_id,
       ]
     );
 
