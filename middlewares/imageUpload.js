@@ -18,16 +18,22 @@ const multerUpload = multer({
     }
     cb(null, true);
   },
-}).array("images", 3); // This will allow up to 3 images
+}).array("images", 3); // up to 3 images
 
-// Middleware untuk upload foto pengguna (user_photo) dan artikel
+const getFolderFromPath = (reqPath) => {
+  if (reqPath.includes("/articles")) return "article_image";
+  if (reqPath.includes("/user")) return "user_image";
+  if (reqPath.includes("/training")) return "training_image";
+  return "misc_image"; // fallback
+};
+
 const uploadFile = (req, res, next) => {
   multerUpload(req, res, async (err) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res
           .status(400)
-          .json(errorResponse("File size exceeds the 1MB limit"));
+          .json(errorResponse("File size exceeds 1MB limit"));
       }
       if (err.message === "File must be an image") {
         return res
@@ -45,12 +51,26 @@ const uploadFile = (req, res, next) => {
 
     try {
       const uploadedFiles = [];
+      const folder = getFolderFromPath(req.originalUrl); // 💡 ambil folder dari route path
 
       for (const file of req.files) {
-        const timestamp = Date.now();
+        const getWIBTimestamp = () => {
+          const now = new Date();
+          const wibOffset = 7 * 60 * 60 * 1000;
+          const wib = new Date(now.getTime() + wibOffset);
+          return wib
+            .toISOString()
+            .replace(/[-T:.Z]/g, "")
+            .slice(0, 14);
+        };
+
+        const timestamp = getWIBTimestamp();
+
         const ext = path.extname(file.originalname);
-        const fileName = `user_image/${timestamp}-${file.originalname}`;
+        const safeName = file.originalname.replace(/\s+/g, "_");
+        const fileName = `${folder}/${timestamp}-${safeName}`;
         const blob = bucket.file(fileName);
+
         const blobStream = blob.createWriteStream({
           metadata: {
             contentType: file.mimetype,
