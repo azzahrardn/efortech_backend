@@ -14,7 +14,7 @@ exports.getUserProfile = async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT users.user_id, users.fullname, users.email, roles.role_desc 
+      `SELECT users.user_id, users.fullname, users.email, users.phone_number, users.institution, users.gender, users.birthdate, users.user_photo, users.created_at, roles.role_desc 
        FROM users 
        JOIN roles ON users.role_id = roles.role_id 
        WHERE users.user_id = $1`,
@@ -32,6 +32,12 @@ exports.getUserProfile = async (req, res) => {
       email: user.email,
       role: user.role_desc,
       fullname: user.fullname,
+      phone_number: user.phone_number,
+      institution: user.institution,
+      gender: user.gender,
+      birthdate: user.birthdate,
+      user_photo: user.user_photo,
+      created_at: user.created_at,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -73,11 +79,11 @@ exports.changePassword = async (req, res) => {
 
 // Edit user profile
 exports.updateUserProfile = async (req, res) => {
-  const userId = req.user.uid;
-  const { fullName, institution, phoneNumber, gender, birthdate, userPhoto } =
+  const user_id = req.user.uid;
+  const { fullname, institution, phone_number, gender, birthdate, user_photo } =
     req.body;
 
-  if (!fullName) {
+  if (!fullname) {
     return sendBadRequestResponse(res, "Full name is required");
   }
 
@@ -87,13 +93,13 @@ exports.updateUserProfile = async (req, res) => {
   else genderValue = null;
 
   const queryParams = [
-    fullName,
+    fullname,
     institution || null,
-    phoneNumber || null,
+    phone_number || null,
     genderValue,
     birthdate || null,
-    userPhoto || null,
-    userId,
+    user_photo || null,
+    user_id,
   ];
 
   const updateQuery = `
