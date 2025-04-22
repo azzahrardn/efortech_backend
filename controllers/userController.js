@@ -1,5 +1,6 @@
 const { getAuth } = require("firebase-admin/auth");
-const pool = require("../config/db"); // PostgreSQL pool (pg)
+const db = require("../config/db");
+const admin = require("firebase-admin");
 const uploadFile = require("../middlewares/imageUpload");
 const { v4: uuidv4 } = require("uuid");
 const {
@@ -8,12 +9,22 @@ const {
   sendBadRequestResponse,
 } = require("../utils/responseUtils");
 
+// Utility function to get user by email from Firebase
+const getFirebaseUserByEmail = async (email) => {
+  try {
+    const userRecord = await getAuth().getUserByEmail(email);
+    return userRecord;
+  } catch (error) {
+    return null;
+  }
+};
+
 // Get user profile from PostgreSQL database
 exports.getUserProfile = async (req, res) => {
   const userId = req.user.uid;
 
   try {
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT users.user_id, users.fullname, users.email, users.phone_number, users.institution, users.gender, users.birthdate, users.user_photo, users.created_at, roles.role_desc 
        FROM users 
        JOIN roles ON users.role_id = roles.role_id 
@@ -22,7 +33,7 @@ exports.getUserProfile = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return sendNotFoundResponse(res, "User not found");
+      return sendSuccessResponse(res, "User not found");
     }
 
     const user = result.rows[0];
@@ -65,7 +76,7 @@ exports.changePassword = async (req, res) => {
     const user = await getAuth().getUser(userId);
 
     if (!user) {
-      return sendNotFoundResponse(res, "User not found");
+      return sendSuccessResponse(res, "User not found");
     }
 
     await getAuth().updateUser(userId, { password: newPassword });
@@ -110,10 +121,10 @@ exports.updateUserProfile = async (req, res) => {
   `;
 
   try {
-    const result = await pool.query(updateQuery, queryParams);
+    const result = await db.query(updateQuery, queryParams);
 
     if (result.rowCount === 0) {
-      return sendErrorResponse(res, "User not found");
+      return sendSuccessResponse(res, "User not found");
     }
 
     return sendSuccessResponse(
@@ -124,5 +135,44 @@ exports.updateUserProfile = async (req, res) => {
   } catch (error) {
     console.error("Error updating user profile:", error);
     return sendErrorResponse(res, "Failed to update profile");
+  }
+};
+
+// Search User by Email
+exports.searchUserByEmail = async (req, res) => {
+  const { email } = req.query;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return sendBadRequestResponse(res, "Invalid email format.");
+  }
+
+  try {
+    const user = await getFirebaseUserByEmail(email);
+
+    if (!user) {
+      return sendSuccessResponse(res, "User not found in Firebase.", null);
+    }
+
+    const dbResult = await db.query("SELECT * FROM users WHERE user_id = $1", [
+      user.uid,
+    ]);
+
+    if (dbResult.rows.length === 0) {
+      return sendSuccessResponse(res, "User not found in database.", null);
+    }
+
+    const dbUser = dbResult.rows[0];
+
+    const result = {
+      user_id: user.uid,
+      email: user.email,
+      fullname: dbUser.fullname,
+      user_photo: dbUser.user_photo,
+      institution: dbUser.institution,
+    };
+
+    return sendSuccessResponse(res, "User found.", result);
+  } catch (error) {
+    return sendErrorResponse(res, "Unexpected server error");
   }
 };
