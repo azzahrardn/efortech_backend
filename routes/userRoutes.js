@@ -3,6 +3,7 @@ const {
   getUserProfile,
   changePassword,
   updateUserProfile,
+  searchUserByEmail,
 } = require("../controllers/userController");
 const verifyToken = require("../middlewares/authMiddleware");
 const uploadFile = require("../middlewares/imageUpload");
@@ -13,16 +14,19 @@ const {
 
 const router = express.Router();
 
-// User profile route
+// GET - User profile route
 router.get("/me", verifyToken, getUserProfile);
 
-// Change password route
+// GET - Search User by Email
+router.get("/search", searchUserByEmail);
+
+// POST - Change password route
 router.post("/change-password", verifyToken, changePassword);
 
-// Update user profile route
+// PUT - Update user profile route
 router.put("/edit-profile", verifyToken, updateUserProfile);
 
-// Endpoint for uploading user image
+// POST - Endpoint for uploading user image
 router.post("/upload-user-photo", uploadFile, (req, res) => {
   if (
     !req.files ||
