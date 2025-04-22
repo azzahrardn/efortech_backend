@@ -20,6 +20,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const articleRoutes = require("./routes/articleRoutes");
 const manageAdminRoutes = require("./routes/manageAdminRoutes");
 const trainingRoutes = require("./routes/trainingRoutes");
+const registrationRoutes = require("./routes/registrationRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -27,6 +28,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/manageadmin", manageAdminRoutes);
 app.use("/api/training", trainingRoutes);
+app.use("/api/registration", registrationRoutes);
 
 // Test API
 app.get("/api/message", (req, res) => {
