@@ -167,7 +167,7 @@ exports.updateTraining = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendNotFoundResponse(res, "Training not found");
+      return sendSuccessResponse(res, "Training not found");
     }
 
     sendSuccessResponse(res, "Training updated successfully");
@@ -187,7 +187,7 @@ exports.deleteTraining = async (req, res) => {
       [training_id]
     );
     if (result.rowCount === 0) {
-      return sendNotFoundResponse(res, "Training not found");
+      return sendSuccessResponse(res, "Training not found");
     }
 
     sendSuccessResponse(res, "Training deleted successfully");
@@ -207,7 +207,7 @@ exports.softDeleteTraining = async (req, res) => {
       [training_id]
     );
     if (training.rowCount === 0) {
-      return sendNotFoundResponse(res, "Training not found");
+      return sendSuccessResponse(res, "Training not found");
     }
 
     return sendSuccessResponse(res, "Training data archived successfully!", {
@@ -297,7 +297,7 @@ exports.getTrainingById = async (req, res) => {
 
     const training = rows[0];
     if (!training) {
-      return sendNotFoundResponse(res, "Training not found");
+      return sendSuccessResponse(res, "Training not found");
     }
 
     if (training.images && Array.isArray(training.images)) {
@@ -354,7 +354,7 @@ exports.searchTraining = async (req, res) => {
     const { rows: trainings } = await db.query(sql, [searchTerm]);
 
     if (trainings.length === 0) {
-      return sendNotFoundResponse(res, "No trainings found");
+      return sendSuccessResponse(res, "No trainings found", []);
     }
 
     trainings.forEach((training) => {
