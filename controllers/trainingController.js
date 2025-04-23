@@ -220,17 +220,42 @@ exports.softDeleteTraining = async (req, res) => {
   }
 };
 
-// Get all trainings
+/* Get all trainings with optional filters and sorting
+----------------------------------------------------
+Query Parameters:
+- status: Filter by training status (default: "1" → active)
+  > Possible values: "1" (active), "2" (archived), "all" (no filter)
+- level: Filter by training level (e.g., 1 = Beginner, 2 = Intermediate, 3 = Advanced)
+- search: Search by training_name or description (case-insensitive, partial match)
+- skill: Filter by skills (checks if value exists in `skills[]` array using ILIKE)
+- sort_by: Column to sort by (allowed: "created_date", "training_name", "level"; default: "created_date")
+- sort_order: Sort direction ("asc" or "desc"; default: "desc")
+
+Example:
+GET /api/training?status=1&level=2&search=web&skill=React&sort_by=training_name&sort_order=asc
+
+Notes:
+- `skills` column is assumed to be an array.
+- `search` performs partial match on both `training_name` and `description` using ILIKE.
+- Returns list of trainings with calculated `final_price` (after discount, if any).
+*/
 exports.getTrainings = async (req, res) => {
   try {
-    const { status = "1", level, search, skill } = req.query;
+    const {
+      status = "1", // default: active
+      level,
+      search,
+      skill,
+      sort_by = "created_date", // default column to sort by
+      sort_order = "desc", // default sort direction
+    } = req.query;
 
     let query = `SELECT * FROM training`;
     let conditions = [];
     let params = [];
     let index = 1;
 
-    // Filter by status
+    // Filter by status (unless 'all')
     if (status !== "all") {
       conditions.push(`status = $${index++}`);
       params.push(status);
@@ -242,7 +267,7 @@ exports.getTrainings = async (req, res) => {
       params.push(level);
     }
 
-    // Filter by search (name/desc)
+    // Filter by name or description using search keyword
     if (search) {
       const like = `%${search}%`;
       conditions.push(
@@ -252,7 +277,7 @@ exports.getTrainings = async (req, res) => {
       index++;
     }
 
-    // Filter by skill
+    // Filter by skill (checks if any skill in the array matches)
     if (skill) {
       conditions.push(`EXISTS (
         SELECT 1 FROM unnest(skills) AS s
@@ -261,14 +286,25 @@ exports.getTrainings = async (req, res) => {
       params.push(`%${skill}%`);
     }
 
+    // Apply filters if any
     if (conditions.length > 0) {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    query += " ORDER BY training_name ASC";
+    // Validate sort options and apply sorting
+    const allowedSortBy = ["created_date", "training_name", "level"];
+    const allowedSortOrder = ["asc", "desc"];
+
+    const sortBy = allowedSortBy.includes(sort_by) ? sort_by : "created_date";
+    const sortOrder = allowedSortOrder.includes(sort_order.toLowerCase())
+      ? sort_order.toUpperCase()
+      : "DESC";
+
+    query += ` ORDER BY ${sortBy} ${sortOrder}`;
 
     const { rows: trainings } = await db.query(query, params);
 
+    // Post-process results
     trainings.forEach((training) => {
       training.skills = training.skills || [];
       training.images = Array.isArray(training.images) ? training.images : [];
