@@ -15,11 +15,8 @@ const {
   sendErrorResponse,
 } = require("../utils/responseUtils");
 
-// Get all trainings (optional filters via query: status, level, skill)
+// Get all trainings (optional filters via query: status, level, skill, created_date)
 router.get("/", getTrainings);
-
-// Search training (name, description, skill)
-router.get("/search", searchTraining);
 
 // Get detail training by ID
 router.get("/id/:training_id", getTrainingById);
