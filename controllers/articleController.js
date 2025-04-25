@@ -1,12 +1,8 @@
 const db = require("../config/db");
-const { v4: uuidv4 } = require("uuid");
 const {
   sendSuccessResponse,
   sendCreatedResponse,
   sendBadRequestResponse,
-  sendUnauthorizedResponse,
-  sendForbiddenResponse,
-  sendNotFoundResponse,
   sendErrorResponse,
 } = require("../utils/responseUtils");
 
@@ -131,7 +127,7 @@ exports.getArticleById = async (req, res) => {
     const article = rows[0];
 
     if (!article) {
-      return sendNotFoundResponse(res, "GENERAL_ERROR");
+      return sendSuccessResponse(res, `No article found with ID: + ${id}`);
     }
 
     // Convert images from Buffer to base64
@@ -223,7 +219,7 @@ exports.updateArticle = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendNotFoundResponse(res, "GENERAL_ERROR");
+      return sendSuccessResponse(res, "Article not found");
     }
 
     sendSuccessResponse(res, "GENERAL_SUCCESS");
@@ -251,7 +247,7 @@ exports.searchArticles = async (req, res) => {
     );
 
     if (articles.length === 0) {
-      return sendNotFoundResponse(res, "Article not found");
+      return sendSuccessResponse(res, "Article not found");
     }
 
     for (const article of articles) {
@@ -312,7 +308,7 @@ exports.getArticlesByTag = async (req, res) => {
     );
 
     if (!articles || articles.length === 0) {
-      return sendNotFoundResponse(
+      return sendSuccessResponse(
         res,
         `No articles found for tag '${tag_text}'.`
       );
