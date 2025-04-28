@@ -186,6 +186,75 @@ exports.getRegistrationById = async (req, res) => {
   }
 };
 
+// Function to fetch registrations by multiple status
+exports.getRegistrationsByStatus = async (req, res) => {
+  const { status } = req.query; // Get status from query params
+
+  // Basic validation
+  if (!status) {
+    return sendBadRequestResponse(res, "status parameter is required");
+  }
+
+  // Split and check each status value
+  const statusArray = status.split(",").map((status) => {
+    // Check if the value can be parsed to a number
+    const parsedStatus = Number(status);
+    if (isNaN(parsedStatus)) {
+      return null; // If it's not a valid number, return null
+    }
+    return parsedStatus; // Return the valid number
+  });
+
+  // If there's any invalid status value, reject the request
+  if (
+    statusArray.includes(null) ||
+    !statusArray.every((status) => [1, 2, 3, 4, 5].includes(status))
+  ) {
+    return sendBadRequestResponse(res, "Invalid status value. Must be 1-5.");
+  }
+
+  const client = await db.connect();
+  try {
+    // Get registrations matching the given status
+    const registrationsResult = await client.query(
+      `SELECT r.*, u.fullname AS registrant_name, t.training_name AS training_name
+       FROM registration r
+       JOIN users u ON r.registrant_id = u.user_id
+       JOIN training t ON r.training_id = t.training_id
+       WHERE r.status = ANY($1) -- Match any of the status
+       ORDER BY r.registration_date DESC`,
+      [statusArray]
+    );
+
+    const registrations = registrationsResult.rows;
+
+    // For each registration, fetch its participants
+    for (const reg of registrations) {
+      const participantsResult = await client.query(
+        `SELECT rp.*, u.fullname AS participant_name, u.email
+         FROM registration_participant rp
+         JOIN users u ON rp.user_id = u.user_id
+         WHERE rp.registration_id = $1`,
+        [reg.registration_id]
+      );
+
+      // Add participants array into the registration object
+      reg.participants = participantsResult.rows;
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Registrations fetched successfully",
+      registrations
+    );
+  } catch (err) {
+    console.error("Get registrations by status error:", err);
+    return sendErrorResponse(res, "Failed to fetch registration data");
+  } finally {
+    client.release();
+  }
+};
+
 // Fuction to update status of registration
 exports.updateRegistrationStatus = async (req, res) => {
   const { registration_id } = req.params;

@@ -8,6 +8,7 @@ const {
   updateRegistrationStatus,
   updateAttendanceStatus,
   updateMultipleAttendanceStatus,
+  getRegistrationsByStatus,
 } = require("../controllers/registrationController");
 
 // POST /api/registration - Create a new training registration
@@ -15,6 +16,9 @@ router.post("/", createRegistration);
 
 // GET /api/registration - Get all registrations with participant info
 router.get("/", getRegistrations);
+
+// GET /api/registration/status - Get registrations by status
+router.get("/status", getRegistrationsByStatus);
 
 // GET /api/registration/:registration_id - Get registration by ID with participant info
 router.get("/:registration_id", getRegistrationById);
