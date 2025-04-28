@@ -252,3 +252,57 @@ exports.updateRegistrationStatus = async (req, res) => {
     client.release();
   }
 };
+
+// Function to update attendance status for a participant
+exports.updateAttendanceStatus = async (req, res) => {
+  const { registration_participant_id } = req.params; // registration_participant_id as parameter
+  const { attendance_status } = req.body; // attendance_status (true/false)
+
+  // Basic validation
+  if (attendance_status === undefined) {
+    return sendBadRequestResponse(res, "Attendance status is required");
+  }
+
+  const client = await db.connect();
+
+  try {
+    // Check if the participant exists in the registration_participant table
+    const participantCheck = await client.query(
+      `SELECT rp.registration_id, r.status 
+         FROM registration_participant rp
+         JOIN registration r ON rp.registration_id = r.registration_id
+         WHERE rp.registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    if (participantCheck.rows.length === 0) {
+      return sendErrorResponse(res, "Participant not found", 404);
+    }
+
+    const { registration_id, status } = participantCheck.rows[0];
+
+    // Ensure registration status is 4 (completed) before allowing attendance status update
+    if (status !== 4) {
+      return sendBadRequestResponse(
+        res,
+        "Attendance status can only be updated for completed registrations (status 4)."
+      );
+    }
+
+    // Update the attendance status for the participant
+    const attendanceStatusValue = attendance_status ? true : false;
+    await client.query(
+      `UPDATE registration_participant 
+     SET attendance_status = $1 
+     WHERE registration_participant_id = $2`,
+      [attendanceStatusValue, registration_participant_id]
+    );
+
+    return sendSuccessResponse(res, "Attendance status updated successfully");
+  } catch (err) {
+    console.error("Update attendance status error:", err);
+    return sendErrorResponse(res, "Failed to update attendance status");
+  } finally {
+    client.release();
+  }
+};
