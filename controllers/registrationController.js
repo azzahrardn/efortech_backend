@@ -51,9 +51,9 @@ exports.createRegistration = async (req, res) => {
     const registration_id = generateCustomId("REGT");
 
     // Calculate total payment: either use `final_price` or fallback to fees * count
-    const total_payment = final_price
-      ? Number(final_price)
-      : Number(training_fees) * Number(participant_count);
+    const total_payment =
+      (final_price ? Number(final_price) : Number(training_fees)) *
+      Number(participant_count);
 
     // Insert the registration data into `registration` table
     await client.query(
