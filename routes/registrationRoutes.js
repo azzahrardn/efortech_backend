@@ -7,6 +7,7 @@ const {
   getRegistrationById,
   updateRegistrationStatus,
   updateAttendanceStatus,
+  updateMultipleAttendanceStatus,
 } = require("../controllers/registrationController");
 
 // POST /api/registration - Create a new training registration
@@ -24,4 +25,6 @@ router.put("/update/:registration_id", updateRegistrationStatus);
 // PUT /api/registration/attendance/:registration_participant_id - Update attendance status
 router.put("/attendance/:registration_participant_id", updateAttendanceStatus);
 
+// PUT /api/registration/attendances - Update multiple attendance status
+router.put("/attendances", updateMultipleAttendanceStatus);
 module.exports = router;

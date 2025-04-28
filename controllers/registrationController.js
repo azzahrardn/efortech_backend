@@ -306,3 +306,71 @@ exports.updateAttendanceStatus = async (req, res) => {
     client.release();
   }
 };
+
+// Function to update attendance status for multiple participants
+exports.updateMultipleAttendanceStatus = async (req, res) => {
+  const { registration_participant_ids } = req.body; // List of registration_participant_ids
+  const { attendance_status } = req.body; // attendance_status (true/false)
+
+  // Basic validation
+  if (
+    !Array.isArray(registration_participant_ids) ||
+    registration_participant_ids.length === 0
+  ) {
+    return sendBadRequestResponse(
+      res,
+      "List of registration_participant_ids is required"
+    );
+  }
+
+  if (attendance_status === undefined) {
+    return sendBadRequestResponse(res, "Attendance status is required");
+  }
+
+  const client = await db.connect();
+
+  try {
+    // Check if all participants exist in the registration_participant table
+    const participantsCheck = await client.query(
+      `SELECT rp.registration_participant_id, rp.registration_id, r.status
+       FROM registration_participant rp
+       JOIN registration r ON rp.registration_id = r.registration_id
+       WHERE rp.registration_participant_id = ANY($1)`, // Using ANY to check for multiple IDs
+      [registration_participant_ids]
+    );
+
+    if (participantsCheck.rows.length !== registration_participant_ids.length) {
+      return sendErrorResponse(res, "Some participants not found", 404);
+    }
+
+    // Ensure all the selected registrations have status 4 (completed) before updating attendance status
+    const incompleteRegistrations = participantsCheck.rows.filter(
+      (row) => row.status !== 4
+    );
+    if (incompleteRegistrations.length > 0) {
+      return sendBadRequestResponse(
+        res,
+        "Attendance status can only be updated for completed registrations (status 4)."
+      );
+    }
+
+    // Update the attendance status for all selected participants
+    const attendanceStatusValue = attendance_status ? true : false;
+    await client.query(
+      `UPDATE registration_participant
+       SET attendance_status = $1
+       WHERE registration_participant_id = ANY($2)`,
+      [attendanceStatusValue, registration_participant_ids]
+    );
+
+    return sendSuccessResponse(
+      res,
+      "Attendance status updated successfully for multiple participants"
+    );
+  } catch (err) {
+    console.error("Update multiple attendance status error:", err);
+    return sendErrorResponse(res, "Failed to update attendance status");
+  } finally {
+    client.release();
+  }
+};
