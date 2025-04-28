@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-
 const {
   createRegistration,
   getRegistrations,
@@ -10,6 +9,11 @@ const {
   updateMultipleAttendanceStatus,
   getRegistrationsByStatus,
 } = require("../controllers/registrationController");
+const uploadFile = require("../middlewares/fileUpload");
+const {
+  sendSuccessResponse,
+  sendErrorResponse,
+} = require("../utils/responseUtils");
 
 // POST /api/registration - Create a new training registration
 router.post("/", createRegistration);
@@ -31,4 +35,19 @@ router.put("/attendance/:registration_participant_id", updateAttendanceStatus);
 
 // PUT /api/registration/attendances - Update multiple attendance status
 router.put("/attendances", updateMultipleAttendanceStatus);
+
+// Upload payment proof file
+router.post("/upload-payment", uploadFile, (req, res) => {
+  if (
+    !req.files ||
+    req.files.length === 0 ||
+    !req.files[0].cloudStoragePublicUrl
+  ) {
+    return sendErrorResponse(res, "Failed Upload");
+  }
+  return sendSuccessResponse(res, "Upload successful", {
+    fileUrl: req.files[0].cloudStoragePublicUrl,
+  });
+});
+
 module.exports = router;
