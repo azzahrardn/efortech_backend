@@ -5,6 +5,7 @@ const {
   createRegistration,
   getRegistrations,
   getRegistrationById,
+  updateRegistrationStatus,
 } = require("../controllers/registrationController");
 
 // POST /api/registration - Create a new training registration
@@ -15,5 +16,8 @@ router.get("/", getRegistrations);
 
 // GET /api/registration/:registration_id - Get registration by ID with participant info
 router.get("/:registration_id", getRegistrationById);
+
+// PUT /api/registration/:registration_id - Update registration status
+router.put("/update/:registration_id", updateRegistrationStatus);
 
 module.exports = router;

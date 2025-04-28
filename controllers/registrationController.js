@@ -185,3 +185,70 @@ exports.getRegistrationById = async (req, res) => {
     client.release();
   }
 };
+
+// Fuction to update status of registration
+exports.updateRegistrationStatus = async (req, res) => {
+  const { registration_id } = req.params;
+  const { status } = req.body;
+
+  // Basic validation
+  if (!registration_id || status === undefined) {
+    return sendBadRequestResponse(
+      res,
+      "Registration ID and new status are required"
+    );
+  }
+
+  const validStatuses = [1, 2, 3, 4, 5];
+  if (!validStatuses.includes(Number(status))) {
+    return sendBadRequestResponse(res, "Invalid status value. Must be 1-5.");
+  }
+
+  const client = await db.connect();
+
+  try {
+    // Check if the registration exists
+    const registrationCheck = await client.query(
+      `SELECT registration_id FROM registration WHERE registration_id = $1`,
+      [registration_id]
+    );
+
+    if (registrationCheck.rows.length === 0) {
+      return sendErrorResponse(res, "Registration not found", 404);
+    }
+
+    let updateQuery = "";
+    let params = [];
+
+    if (Number(status) === 4) {
+      const now = new Date();
+      now.setHours(now.getHours() + 7);
+
+      const completedDate = now.toISOString();
+
+      updateQuery = `
+        UPDATE registration 
+        SET status = $1, completed_date = $2
+        WHERE registration_id = $3
+      `;
+      params = [status, completedDate, registration_id];
+    } else {
+      updateQuery = `
+        UPDATE registration 
+        SET status = $1
+        WHERE registration_id = $2
+      `;
+      params = [status, registration_id];
+    }
+
+    // Execute the update
+    await client.query(updateQuery, params);
+
+    return sendSuccessResponse(res, "Registration status updated successfully");
+  } catch (err) {
+    console.error("Update registration status error:", err);
+    return sendErrorResponse(res, "Failed to update registration status");
+  } finally {
+    client.release();
+  }
+};
