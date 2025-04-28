@@ -139,3 +139,49 @@ exports.getRegistrations = async (req, res) => {
     client.release();
   }
 };
+
+// Function to fetch registration data by ID
+exports.getRegistrationById = async (req, res) => {
+  const { registration_id } = req.params;
+  const client = await db.connect();
+
+  try {
+    // Fetch the registration data
+    const registrationResult = await client.query(
+      `SELECT r.*, u.fullname AS registrant_name, t.training_name AS training_name
+       FROM registration r
+       JOIN users u ON r.registrant_id = u.user_id
+       JOIN training t ON r.training_id = t.training_id
+       WHERE r.registration_id = $1`,
+      [registration_id]
+    );
+
+    if (registrationResult.rows.length === 0) {
+      return sendErrorResponse(res, "Registration not found", 404);
+    }
+
+    const registration = registrationResult.rows[0];
+
+    // Fetch participants linked to this registration
+    const participantsResult = await client.query(
+      `SELECT rp.*, u.fullname AS participant_name, u.email
+       FROM registration_participant rp
+       JOIN users u ON rp.user_id = u.user_id
+       WHERE rp.registration_id = $1`,
+      [registration_id]
+    );
+
+    registration.participants = participantsResult.rows;
+
+    return sendSuccessResponse(
+      res,
+      "Registration fetched successfully",
+      registration
+    );
+  } catch (err) {
+    console.error("Get registration by ID error:", err);
+    return sendErrorResponse(res, "Failed to fetch registration data");
+  } finally {
+    client.release();
+  }
+};

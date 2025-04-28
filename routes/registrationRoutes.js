@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   createRegistration,
   getRegistrations,
+  getRegistrationById,
 } = require("../controllers/registrationController");
 
 // POST /api/registration - Create a new training registration
@@ -11,5 +12,8 @@ router.post("/", createRegistration);
 
 // GET /api/registration - Get all registrations with participant info
 router.get("/", getRegistrations);
+
+// GET /api/registration/:registration_id - Get registration by ID with participant info
+router.get("/:registration_id", getRegistrationById);
 
 module.exports = router;
