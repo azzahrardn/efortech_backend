@@ -27,6 +27,7 @@ exports.createRegistration = async (req, res) => {
     participant_count,
     final_price,
     training_fees,
+    training_date,
     participants, // Expected to be an array of objects with user_id
     payment_proof,
   } = req.body;
@@ -35,6 +36,7 @@ exports.createRegistration = async (req, res) => {
   if (
     !training_id ||
     !registrant_id ||
+    !training_date ||
     !participant_count ||
     !participants ||
     participants.length === 0
@@ -56,12 +58,13 @@ exports.createRegistration = async (req, res) => {
     // Insert the registration data into `registration` table
     await client.query(
       `INSERT INTO registration 
-          (registration_id, registrant_id, training_id, participant_count, total_payment, payment_proof) 
-          VALUES ($1, $2, $3, $4, $5, $6)`,
+          (registration_id, registrant_id, training_id, training_date, participant_count, total_payment, payment_proof) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         registration_id,
         registrant_id,
         training_id,
+        training_date,
         participant_count,
         total_payment,
         payment_proof || null, // Store null if no proof uploaded
@@ -105,7 +108,7 @@ exports.getRegistrations = async (req, res) => {
            FROM registration r
            JOIN users u ON r.registrant_id = u.user_id
            JOIN training t ON r.training_id = t.training_id
-           ORDER BY r.date DESC`
+           ORDER BY r.registration_date DESC`
     );
 
     const registrations = registrationsResult.rows;
