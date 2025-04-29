@@ -142,3 +142,48 @@ exports.getCertificates = async (req, res) => {
     client.release();
   }
 };
+
+// Controller function to fetch a single certificate by ID
+exports.getCertificateById = async (req, res) => {
+  const client = await db.connect();
+  const { certificate_id } = req.params;
+
+  try {
+    const query = `
+        SELECT 
+          c.*,
+          u.fullname,
+          u.user_photo,
+          t.training_name,
+          r.completed_date
+        FROM certificate c
+        JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
+        JOIN registration r ON rp.registration_id = r.registration_id
+        JOIN users u ON rp.user_id = u.user_id
+        JOIN training t ON r.training_id = t.training_id
+        WHERE c.certificate_id = $1
+      `;
+
+    const result = await client.query(query, [certificate_id]);
+
+    if (result.rows.length === 0) {
+      return sendErrorResponse(res, "Certificate not found");
+    }
+
+    const certificate = {
+      ...result.rows[0],
+      status_certificate: getCertificateStatus(result.rows[0].expired_date),
+    };
+
+    return sendSuccessResponse(
+      res,
+      "Certificate fetched successfully",
+      certificate
+    );
+  } catch (err) {
+    console.error("Get certificate by ID error:", err);
+    return sendErrorResponse(res, "Failed to fetch certificate");
+  } finally {
+    client.release();
+  }
+};
