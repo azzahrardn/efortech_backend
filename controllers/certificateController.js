@@ -135,6 +135,10 @@ exports.getCertificates = async (req, res) => {
 
     const result = await client.query(query);
 
+    if (result.rows.length === 0) {
+      return sendSuccessResponse(res, "Certificate not found");
+    }
+
     const certificatesWithStatus = result.rows.map((row) => ({
       ...row,
       status_certificate: getCertificateStatus(row.expired_date),
@@ -183,7 +187,7 @@ exports.getCertificateById = async (req, res) => {
     const result = await client.query(query, [certificate_id]);
 
     if (result.rows.length === 0) {
-      return sendErrorResponse(res, "Certificate not found");
+      return sendSuccessResponse(res, "Certificate not found");
     }
 
     const certificate = {
@@ -199,6 +203,138 @@ exports.getCertificateById = async (req, res) => {
   } catch (err) {
     console.error("Get certificate by ID error:", err);
     return sendErrorResponse(res, "Failed to fetch certificate");
+  } finally {
+    client.release();
+  }
+};
+
+// Controller function to search for certificates based on various criteria
+exports.searchCertificates = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const {
+      training_name,
+      certificate_number,
+      fullname,
+      issued_date, // exact match
+      expired_date, // exact match
+      issued_date_from,
+      issued_date_to,
+      expired_date_from,
+      expired_date_to,
+    } = req.query;
+
+    let baseQuery = `
+        SELECT 
+          c.certificate_id,
+          c.training_id,
+          c.issued_date,
+          c.expired_date,
+          c.cert_file,
+          c.user_id,
+          c.registration_participant_id,
+          c.certificate_number,
+          u.fullname,
+          u.user_photo,
+          r.registration_id,
+          r.status AS registration_status,
+          r.completed_date,
+          r.training_date,
+          t.training_name
+        FROM certificate c
+        JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
+        JOIN registration r ON rp.registration_id = r.registration_id
+        JOIN users u ON rp.user_id = u.user_id
+        JOIN training t ON r.training_id = t.training_id
+        WHERE 1=1
+      `;
+
+    const queryParams = [];
+    let paramIndex = 1;
+
+    // Search by training_name (case-insensitive, partial match)
+    if (training_name) {
+      baseQuery += ` AND LOWER(t.training_name) LIKE LOWER($${paramIndex})`;
+      queryParams.push(`%${training_name}%`);
+      paramIndex++;
+    }
+
+    // Search by certificate_number (partial match)
+    if (certificate_number) {
+      baseQuery += ` AND LOWER(c.certificate_number) LIKE LOWER($${paramIndex})`;
+      queryParams.push(`%${certificate_number}%`);
+      paramIndex++;
+    }
+
+    // Search by fullname (case-insensitive, partial match)
+    if (fullname) {
+      baseQuery += ` AND LOWER(u.fullname) LIKE LOWER($${paramIndex})`;
+      queryParams.push(`%${fullname}%`);
+      paramIndex++;
+    }
+
+    // Exact match issued_date
+    if (issued_date) {
+      baseQuery += ` AND c.issued_date = $${paramIndex}`;
+      queryParams.push(issued_date);
+      paramIndex++;
+    }
+
+    // Exact match expired_date
+    if (expired_date) {
+      baseQuery += ` AND c.expired_date = $${paramIndex}`;
+      queryParams.push(expired_date);
+      paramIndex++;
+    }
+
+    // Range issued_date
+    if (issued_date_from) {
+      baseQuery += ` AND c.issued_date >= $${paramIndex}`;
+      queryParams.push(issued_date_from);
+      paramIndex++;
+    }
+
+    if (issued_date_to) {
+      baseQuery += ` AND c.issued_date <= $${paramIndex}`;
+      queryParams.push(issued_date_to);
+      paramIndex++;
+    }
+
+    // Range expired_date
+    if (expired_date_from) {
+      baseQuery += ` AND c.expired_date >= $${paramIndex}`;
+      queryParams.push(expired_date_from);
+      paramIndex++;
+    }
+
+    if (expired_date_to) {
+      baseQuery += ` AND c.expired_date <= $${paramIndex}`;
+      queryParams.push(expired_date_to);
+      paramIndex++;
+    }
+
+    baseQuery += ` ORDER BY c.issued_date DESC, u.fullname ASC`;
+
+    const result = await client.query(baseQuery, queryParams);
+
+    if (result.rows.length === 0) {
+      return sendSuccessResponse(res, "Certificate not found");
+    }
+
+    const certificates = result.rows.map((row) => ({
+      ...row,
+      status_certificate: getCertificateStatus(row.expired_date),
+    }));
+
+    return sendSuccessResponse(
+      res,
+      "Certificates searched successfully",
+      certificates
+    );
+  } catch (err) {
+    console.error("Search certificates error:", err);
+    return sendErrorResponse(res, "Failed to search certificates");
   } finally {
     client.release();
   }

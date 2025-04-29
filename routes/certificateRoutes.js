@@ -4,6 +4,7 @@ const {
   createCertificate,
   getCertificates,
   getCertificateById,
+  searchCertificates,
 } = require("../controllers/certificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -16,6 +17,9 @@ router.post("/", createCertificate);
 
 // GET /api/certificate - Get all certificates
 router.get("/", getCertificates);
+
+// GET /api/certificate/search - Search for certificates by various criteria
+router.get("/search", searchCertificates);
 
 // GET /api/certificate/:certificate_id - Get a certificate by ID
 router.get("/:certificate_id", getCertificateById);
