@@ -5,12 +5,9 @@ const {
   getRegistrations,
   getRegistrationById,
   updateRegistrationStatus,
-  updateAttendanceStatus,
-  updateMultipleAttendanceStatus,
   getRegistrationsByStatus,
   savePaymentProof,
   searchRegistrations,
-  getCompletedParticipants,
 } = require("../controllers/registrationController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
