@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const { createCertificate } = require("../controllers/certificateController");
+const {
+  createCertificate,
+  getCertificates,
+} = require("../controllers/certificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
   sendSuccessResponse,
@@ -9,6 +12,9 @@ const {
 
 // POST /api/certificate - Create a new training certificate
 router.post("/", createCertificate);
+
+// GET /api/certificate - Get all certificates
+router.get("/", getCertificates);
 
 // Upload certificate file
 router.post("/upload-certificate", uploadFile, (req, res) => {
