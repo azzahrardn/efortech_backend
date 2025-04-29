@@ -601,3 +601,37 @@ exports.searchRegistrations = async (req, res) => {
     client.release();
   }
 };
+
+// Function to fetch all registration_participant with registration.status = 4
+exports.getCompletedParticipants = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const query = `
+      SELECT 
+        rp.*,
+        u.*,
+        r.*,
+        t.training_id, 
+        t.training_name
+      FROM registration_participant rp
+      JOIN registration r ON rp.registration_id = r.registration_id
+      JOIN users u ON rp.user_id = u.user_id
+      JOIN training t ON r.training_id = t.training_id
+      WHERE r.status = 4
+      ORDER BY r.training_date DESC, u.fullname ASC
+    `;
+
+    const result = await client.query(query);
+    return sendSuccessResponse(
+      res,
+      "Completed participant registrations fetched successfully",
+      result.rows
+    );
+  } catch (err) {
+    console.error("Get completed participants error:", err);
+    return sendErrorResponse(res, "Failed to fetch completed participants");
+  } finally {
+    client.release();
+  }
+};

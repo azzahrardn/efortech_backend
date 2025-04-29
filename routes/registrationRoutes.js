@@ -10,6 +10,7 @@ const {
   getRegistrationsByStatus,
   savePaymentProof,
   searchRegistrations,
+  getCompletedParticipants,
 } = require("../controllers/registrationController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -22,6 +23,9 @@ router.post("/", createRegistration);
 
 // GET /api/registration - Get all registrations with participant info
 router.get("/", getRegistrations);
+
+// GET /api/registration/participants - Get completed registration participants
+router.get("/participants", getCompletedParticipants);
 
 // GET /api/registration/status - Get registrations by status
 router.get("/status", getRegistrationsByStatus);
