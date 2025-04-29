@@ -20,13 +20,7 @@ const multerUpload = multer({
       "image/heic",
       "image/webp",
     ];
-    const allowedFileMimeTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/zip",
-      "application/x-rar-compressed",
-    ];
+    const allowedFileMimeTypes = ["application/pdf", "application/msword"];
 
     // Check if the file is an image or a supported file type
     if (
@@ -53,11 +47,8 @@ const uploadFile = (req, res, next) => {
           .status(400)
           .json(sendErrorResponse("File size exceeds 10MB limit"));
       }
-      if (err.message === "Only image, PDF, DOCX, or ZIP files are allowed") {
-        return sendErrorResponse(
-          res,
-          "Only image, PDF, DOCX, or ZIP files are allowed"
-        );
+      if (err.message === "Only image, PDF or DOCX are allowed") {
+        return sendErrorResponse(res, "Only image, PDF or DOCX are allowed");
       }
       return sendErrorResponse(res, err.message || "File upload error");
     }
@@ -68,7 +59,7 @@ const uploadFile = (req, res, next) => {
 
     try {
       const uploadedFiles = [];
-      const folder = getFolderFromPath(req.originalUrl); // 💡 ambil folder dari route path
+      const folder = getFolderFromPath(req.originalUrl);
 
       for (const file of req.files) {
         const getWIBTimestamp = () => {
