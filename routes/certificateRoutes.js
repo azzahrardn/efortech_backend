@@ -5,6 +5,7 @@ const {
   getCertificates,
   getCertificateById,
   searchCertificates,
+  deleteCertificate,
 } = require("../controllers/certificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -23,6 +24,9 @@ router.get("/search", searchCertificates);
 
 // GET /api/certificate/:certificate_id - Get a certificate by ID
 router.get("/:certificate_id", getCertificateById);
+
+// DELETE /api/certificate/:certificate_id - Delete a certificate by ID
+router.delete("/:certificate_id", deleteCertificate);
 
 // Upload certificate file
 router.post("/upload-certificate", uploadFile, (req, res) => {

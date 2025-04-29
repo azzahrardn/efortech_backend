@@ -339,3 +339,43 @@ exports.searchCertificates = async (req, res) => {
     client.release();
   }
 };
+
+// Controller function to delete a certificate
+exports.deleteCertificate = async (req, res) => {
+  const { certificate_id } = req.params;
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE registration_participant 
+         SET has_certificate = false 
+         WHERE registration_participant_id = (
+           SELECT registration_participant_id 
+           FROM certificate 
+           WHERE certificate_id = $1
+         )`,
+      [certificate_id]
+    );
+
+    const result = await client.query(
+      "DELETE FROM certificate WHERE certificate_id = $1 RETURNING *",
+      [certificate_id]
+    );
+
+    await client.query("COMMIT");
+
+    if (result.rowCount === 0) {
+      return sendErrorResponse(res, "Certificate not found");
+    }
+
+    return sendSuccessResponse(res, "Certificate deleted successfully");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Delete certificate error:", err);
+    return sendErrorResponse(res, "Failed to delete certificate");
+  } finally {
+    client.release();
+  }
+};
