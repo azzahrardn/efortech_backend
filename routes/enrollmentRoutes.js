@@ -5,11 +5,6 @@ const {
   updateMultipleAttendanceStatus,
   getCompletedParticipants,
 } = require("../controllers/enrollmentController");
-const uploadFile = require("../middlewares/fileUpload");
-const {
-  sendSuccessResponse,
-  sendErrorResponse,
-} = require("../utils/responseUtils");
 
 // GET /api/registration/participants - Get completed registration participants
 router.get("/participants", getCompletedParticipants);
@@ -19,3 +14,5 @@ router.put("/attendance/:registration_participant_id", updateAttendanceStatus);
 
 // PUT /api/registration/attendances - Update multiple attendance status
 router.put("/attendances", updateMultipleAttendanceStatus);
+
+module.exports = router;
