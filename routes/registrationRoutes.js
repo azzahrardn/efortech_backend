@@ -24,9 +24,6 @@ router.post("/", createRegistration);
 // GET /api/registration - Get all registrations with participant info
 router.get("/", getRegistrations);
 
-// GET /api/registration/participants - Get completed registration participants
-router.get("/participants", getCompletedParticipants);
-
 // GET /api/registration/status - Get registrations by status
 router.get("/status", getRegistrationsByStatus);
 
@@ -41,12 +38,6 @@ router.put("/update/:registration_id", updateRegistrationStatus);
 
 /// PUT /api/registration/save-payment - Save payment proof
 router.put("/save-payment", savePaymentProof);
-
-// PUT /api/registration/attendance/:registration_participant_id - Update attendance status
-router.put("/attendance/:registration_participant_id", updateAttendanceStatus);
-
-// PUT /api/registration/attendances - Update multiple attendance status
-router.put("/attendances", updateMultipleAttendanceStatus);
 
 // Upload payment proof file
 router.post("/upload-payment", uploadFile, (req, res) => {
