@@ -484,3 +484,120 @@ exports.savePaymentProof = async (req, res) => {
     client.release();
   }
 };
+
+// Function to search registrations based on various criteria
+exports.searchRegistrations = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    // Extract query parameters
+    const {
+      keyword,
+      status,
+      training_date_from,
+      training_date_to,
+      registration_date_from,
+      registration_date_to,
+      registrant_name,
+      training_name,
+    } = req.query;
+
+    // Prepare base query
+    let baseQuery = `
+      SELECT r.*, u.fullname AS registrant_name, t.training_name
+      FROM registration r
+      JOIN users u ON r.registrant_id = u.user_id
+      JOIN training t ON r.training_id = t.training_id
+      WHERE 1=1
+    `;
+
+    const queryParams = [];
+    let paramIndex = 1;
+
+    // Keyword search in registrant name or training name
+    if (keyword) {
+      baseQuery += ` AND (LOWER(u.fullname) LIKE LOWER($${paramIndex}) OR LOWER(t.training_name) LIKE LOWER($${paramIndex}))`;
+      queryParams.push(`%${keyword}%`);
+      paramIndex++;
+    }
+
+    // Filter by status (array)
+    if (status) {
+      const statusArray = status.split(",").map((s) => Number(s));
+      baseQuery += ` AND r.status = ANY($${paramIndex})`;
+      queryParams.push(statusArray);
+      paramIndex++;
+    }
+
+    // Filter by training date range
+    if (training_date_from) {
+      baseQuery += ` AND r.training_date >= $${paramIndex}`;
+      queryParams.push(training_date_from);
+      paramIndex++;
+    }
+
+    if (training_date_to) {
+      baseQuery += ` AND r.training_date <= $${paramIndex}`;
+      queryParams.push(training_date_to);
+      paramIndex++;
+    }
+
+    // Filter by registration date range
+    if (training_date_from) {
+      baseQuery += ` AND r.registration_date >= $${paramIndex}`;
+      queryParams.push(registration_date_from);
+      paramIndex++;
+    }
+
+    if (registration_date_to) {
+      baseQuery += ` AND r.registration_date <= $${paramIndex}`;
+      queryParams.push(registration_date_to);
+      paramIndex++;
+    }
+
+    // Filter by exact registrant name
+    if (registrant_name) {
+      baseQuery += ` AND LOWER(u.fullname) LIKE LOWER($${paramIndex})`;
+      queryParams.push(`%${registrant_name}%`);
+      paramIndex++;
+    }
+
+    // Filter by exact training name
+    if (training_name) {
+      baseQuery += ` AND LOWER(t.training_name) LIKE LOWER($${paramIndex})`;
+      queryParams.push(`%${training_name}%`);
+      paramIndex++;
+    }
+
+    // Sort by registration date desc
+    baseQuery += ` ORDER BY r.registration_date DESC`;
+
+    // Execute the query
+    const registrationsResult = await client.query(baseQuery, queryParams);
+    const registrations = registrationsResult.rows;
+
+    // For each registration, fetch its participants
+    for (const reg of registrations) {
+      const participantsResult = await client.query(
+        `SELECT rp.*, u.fullname AS participant_name, u.email
+         FROM registration_participant rp
+         JOIN users u ON rp.user_id = u.user_id
+         WHERE rp.registration_id = $1`,
+        [reg.registration_id]
+      );
+
+      reg.participants = participantsResult.rows;
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Registrations fetched successfully",
+      registrations
+    );
+  } catch (err) {
+    console.error("Search registrations error:", err);
+    return sendErrorResponse(res, "Failed to fetch registrations");
+  } finally {
+    client.release();
+  }
+};

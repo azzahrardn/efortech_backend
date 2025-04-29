@@ -9,6 +9,7 @@ const {
   updateMultipleAttendanceStatus,
   getRegistrationsByStatus,
   savePaymentProof,
+  searchRegistrations,
 } = require("../controllers/registrationController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -24,6 +25,9 @@ router.get("/", getRegistrations);
 
 // GET /api/registration/status - Get registrations by status
 router.get("/status", getRegistrationsByStatus);
+
+// GET /api/registration/search - Search registrations various criteria
+router.get("/search", searchRegistrations);
 
 // GET /api/registration/:registration_id - Get registration by ID with participant info
 router.get("/:registration_id", getRegistrationById);
