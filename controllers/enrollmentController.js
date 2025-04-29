@@ -161,3 +161,50 @@ exports.getCompletedParticipants = async (req, res) => {
     client.release();
   }
 };
+
+// Function to fetch training history for a specific user
+exports.getUserTrainingHistory = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const { user_id } = req.params; // Get user_id from URL params or query
+
+    const query = `
+        SELECT 
+          r.registration_id,
+          r.status AS registration_status,
+          r.training_date,
+          t.training_name,
+          c.certificate_id,
+          c.issued_date AS certificate_issued_date,
+          c.expired_date AS certificate_expiry_date,
+          u.fullname,
+          u.email,
+          u.user_photo
+        FROM registration r
+        JOIN registration_participant rp ON r.registration_id = rp.registration_id
+        JOIN training t ON r.training_id = t.training_id
+        LEFT JOIN certificate c ON rp.registration_participant_id = c.registration_participant_id
+        JOIN users u ON rp.user_id = u.user_id
+        WHERE u.user_id = $1
+        ORDER BY r.training_date DESC
+      `;
+
+    const result = await client.query(query, [user_id]);
+
+    if (result.rows.length === 0) {
+      return sendErrorResponse(res, "No training history found for this user");
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Training history fetched successfully",
+      result.rows
+    );
+  } catch (err) {
+    console.error("Error fetching user training history:", err);
+    return sendErrorResponse(res, "Failed to fetch user training history");
+  } finally {
+    client.release();
+  }
+};
