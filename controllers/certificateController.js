@@ -96,6 +96,16 @@ exports.createCertificate = async (req, res) => {
 // Function to fetch all certificates
 exports.getCertificates = async (req, res) => {
   const client = await db.connect();
+  const { status } = req.query;
+
+  // Validate status parameter
+  const allowedStatus = ["Valid", "Expired"];
+  if (status && !allowedStatus.includes(status)) {
+    return sendBadRequestResponse(
+      res,
+      "Invalid status parameter. Use 'Valid' or 'Expired'."
+    );
+  }
 
   try {
     const query = `
@@ -130,10 +140,16 @@ exports.getCertificates = async (req, res) => {
       status_certificate: getCertificateStatus(row.expired_date),
     }));
 
+    const filteredCertificates = status
+      ? certificatesWithStatus.filter(
+          (row) => row.status_certificate === status
+        )
+      : certificatesWithStatus;
+
     return sendSuccessResponse(
       res,
       "Certificates fetched successfully",
-      certificatesWithStatus
+      filteredCertificates
     );
   } catch (err) {
     console.error("Get certificates error:", err);
