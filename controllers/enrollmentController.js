@@ -168,16 +168,18 @@ exports.getUserTrainingHistory = async (req, res) => {
 
   try {
     const { user_id } = req.params; // Get user_id from URL params or query
+    const { status } = req.query; // Get status from query parameters (optional)
 
-    const query = `
+    // Base query
+    let query = `
         SELECT 
           r.registration_id,
-          r.status AS registration_status,
+          r.status,
           r.training_date,
           t.training_name,
           c.certificate_id,
-          c.issued_date AS certificate_issued_date,
-          c.expired_date AS certificate_expiry_date,
+          c.issued_date,
+          c.expired_date,
           u.fullname,
           u.email,
           u.user_photo
@@ -187,13 +189,26 @@ exports.getUserTrainingHistory = async (req, res) => {
         LEFT JOIN certificate c ON rp.registration_participant_id = c.registration_participant_id
         JOIN users u ON rp.user_id = u.user_id
         WHERE u.user_id = $1
-        ORDER BY r.training_date DESC
       `;
 
-    const result = await client.query(query, [user_id]);
+    // Add filter if status is provided
+    if (status) {
+      query += ` AND r.status = $2`;
+    }
+
+    query += ` ORDER BY r.training_date DESC`;
+
+    // Run query
+    const result = await client.query(
+      query,
+      status ? [user_id, status] : [user_id]
+    );
 
     if (result.rows.length === 0) {
-      return sendErrorResponse(res, "No training history found for this user");
+      return sendSuccessResponse(
+        res,
+        "No training history found for this user"
+      );
     }
 
     return sendSuccessResponse(
