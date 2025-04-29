@@ -443,3 +443,44 @@ exports.updateMultipleAttendanceStatus = async (req, res) => {
     client.release();
   }
 };
+
+// Function to save payment proof URL to database
+exports.savePaymentProof = async (req, res) => {
+  const { registration_id, fileUrl } = req.body;
+
+  // Basic validation
+  if (!registration_id || !fileUrl) {
+    return sendBadRequestResponse(
+      res,
+      "Registration ID and file URL are required"
+    );
+  }
+
+  const client = await db.connect();
+  try {
+    // Check if the registration exists
+    const registrationCheck = await client.query(
+      `SELECT registration_id FROM registration WHERE registration_id = $1`,
+      [registration_id]
+    );
+
+    if (registrationCheck.rows.length === 0) {
+      return sendErrorResponse(res, "Registration not found", 404);
+    }
+
+    // Update the payment proof in the registration table
+    await client.query(
+      `UPDATE registration 
+       SET payment_proof = $1 
+       WHERE registration_id = $2`,
+      [fileUrl, registration_id]
+    );
+
+    return sendSuccessResponse(res, "Payment proof saved successfully");
+  } catch (err) {
+    console.error("Save payment proof error:", err);
+    return sendErrorResponse(res, "Failed to save payment proof");
+  } finally {
+    client.release();
+  }
+};

@@ -8,6 +8,7 @@ const {
   updateAttendanceStatus,
   updateMultipleAttendanceStatus,
   getRegistrationsByStatus,
+  savePaymentProof,
 } = require("../controllers/registrationController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -29,6 +30,9 @@ router.get("/:registration_id", getRegistrationById);
 
 // PUT /api/registration/:registration_id - Update registration status
 router.put("/update/:registration_id", updateRegistrationStatus);
+
+/// PUT /api/registration/save-payment - Save payment proof
+router.put("/save-payment", savePaymentProof);
 
 // PUT /api/registration/attendance/:registration_participant_id - Update attendance status
 router.put("/attendance/:registration_participant_id", updateAttendanceStatus);
