@@ -156,3 +156,44 @@ exports.getAllReviews = async (req, res) => {
     client.release();
   }
 };
+
+// Get a single review by participant ID
+exports.getReviewByParticipantId = async (req, res) => {
+  const { registration_participant_id } = req.params;
+
+  const client = await db.connect();
+  try {
+    const result = await client.query(
+      `SELECT 
+           r.review_id,
+           r.review_description,
+           r.score,
+           r.review_date,
+           u.fullname,
+           u.user_photo,
+           t.training_name,
+           t.level
+         FROM review r
+         JOIN registration_participant rp ON r.registration_participant_id = rp.registration_participant_id
+         JOIN users u ON rp.user_id = u.user_id
+         JOIN registration reg ON rp.registration_id = reg.registration_id
+         JOIN training t ON reg.training_id = t.training_id
+         WHERE r.registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    if (result.rowCount === 0) {
+      return sendBadRequestResponse(res, "Review not found.");
+    }
+
+    const review = result.rows[0];
+    review.level = mapLevel(review.level);
+
+    return sendSuccessResponse(res, "Review retrieved successfully", review);
+  } catch (err) {
+    console.error("Error getting review:", err);
+    return sendErrorResponse(res, "Failed to retrieve review", err.message);
+  } finally {
+    client.release();
+  }
+};
