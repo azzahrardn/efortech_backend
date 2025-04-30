@@ -28,23 +28,19 @@ const generateCustomId = (prefix) => {
 exports.createCertificate = async (req, res) => {
   // Extract input data from request body
   const {
-    training_id,
     issued_date,
     expired_date,
     certificate_number,
     cert_file,
-    user_id,
     registration_participant_id,
   } = req.body;
 
   // Basic validation for required fields
   if (
-    !training_id ||
     !issued_date ||
     !expired_date ||
     !certificate_number ||
     !cert_file ||
-    !user_id ||
     !registration_participant_id
   ) {
     return sendBadRequestResponse(res, "Incomplete certificate data");
@@ -59,16 +55,14 @@ exports.createCertificate = async (req, res) => {
     // Insert the registration data into `registration` table
     await client.query(
       `INSERT INTO certificate
-            (certificate_id, training_id, issued_date, expired_date, certificate_number, cert_file, user_id, registration_participant_id) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            (certificate_id, issued_date, expired_date, certificate_number, cert_file, registration_participant_id) 
+            VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         certificate_id,
-        training_id,
         issued_date,
         expired_date,
         certificate_number,
         cert_file,
-        user_id,
         registration_participant_id,
       ]
     );
@@ -110,21 +104,19 @@ exports.getCertificates = async (req, res) => {
   try {
     const query = `
         SELECT 
-          c.certificate_id,
-          c.training_id,
-          c.issued_date,
-          c.expired_date,
-          c.cert_file,
-          c.user_id,
-          c.registration_participant_id,
-          c.certificate_number,
-          u.fullname,
-          u.user_photo,
-          r.registration_id,
-          r.status AS registration_status,
-          r.completed_date,
-          r.training_date,
-          t.training_name
+            c.certificate_id,
+            c.issued_date,
+            c.expired_date,
+            c.cert_file,
+            c.registration_participant_id,
+            c.certificate_number,
+            u.fullname,
+            u.user_photo,
+            r.registration_id,
+            r.status AS registration_status,
+            r.completed_date,
+            r.training_date,
+            t.training_name
         FROM certificate c
         JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
         JOIN registration r ON rp.registration_id = r.registration_id
@@ -171,11 +163,11 @@ exports.getCertificateById = async (req, res) => {
   try {
     const query = `
         SELECT 
-          c.*,
-          u.fullname,
-          u.user_photo,
-          t.training_name,
-          r.completed_date
+            c.*,
+            u.fullname,
+            u.user_photo,
+            t.training_name,
+            r.completed_date
         FROM certificate c
         JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
         JOIN registration r ON rp.registration_id = r.registration_id
@@ -227,21 +219,19 @@ exports.searchCertificates = async (req, res) => {
 
     let baseQuery = `
         SELECT 
-          c.certificate_id,
-          c.training_id,
-          c.issued_date,
-          c.expired_date,
-          c.cert_file,
-          c.user_id,
-          c.registration_participant_id,
-          c.certificate_number,
-          u.fullname,
-          u.user_photo,
-          r.registration_id,
-          r.status AS registration_status,
-          r.completed_date,
-          r.training_date,
-          t.training_name
+            c.certificate_id,
+            c.issued_date,
+            c.expired_date,
+            c.cert_file,
+            c.registration_participant_id,
+            c.certificate_number,
+            u.fullname,
+            u.user_photo,
+            r.registration_id,
+            r.status AS registration_status,
+            r.completed_date,
+            r.training_date,
+            t.training_name
         FROM certificate c
         JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
         JOIN registration r ON rp.registration_id = r.registration_id
