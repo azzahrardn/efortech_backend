@@ -197,3 +197,101 @@ exports.getReviewByParticipantId = async (req, res) => {
     client.release();
   }
 };
+
+// Search and filter reviews with multiple options
+exports.searchAndFilterReviews = async (req, res) => {
+  const {
+    training_id,
+    training_name,
+    sort_by = "review_date",
+    sort_order = "desc",
+    date_from,
+    date_to,
+    score,
+    score_sort,
+  } = req.query;
+
+  const client = await db.connect();
+  try {
+    let query = `
+        SELECT 
+          r.review_id,
+          r.review_description,
+          r.score,
+          r.review_date,
+          u.fullname,
+          u.user_photo,
+          t.training_name,
+          t.level
+        FROM review r
+        JOIN registration_participant rp ON r.registration_participant_id = rp.registration_participant_id
+        JOIN users u ON rp.user_id = u.user_id
+        JOIN registration reg ON rp.registration_id = reg.registration_id
+        JOIN training t ON reg.training_id = t.training_id
+        WHERE 1=1
+      `;
+
+    const values = [];
+    let i = 1;
+
+    // Add filters based on training_id query parameters
+    if (training_id) {
+      query += ` AND t.training_id = $${i++}`;
+      values.push(training_id);
+    }
+
+    // Add filters based on training_name query parameters
+    if (training_name) {
+      query += ` AND LOWER(t.training_name) LIKE LOWER($${i++})`;
+      values.push(`%${training_name}%`);
+    }
+
+    // Add filters based on date_from and date_to query parameters
+    if (date_from) {
+      query += ` AND r.review_date >= $${i++}`;
+      values.push(date_from);
+    }
+    if (date_to) {
+      query += ` AND r.review_date <= $${i++}`;
+      values.push(date_to);
+    }
+
+    // Add filters based on score query parameters
+    if (score) {
+      if (Array.isArray(score)) {
+        query += ` AND r.score = ANY($${i++})`;
+        values.push(score);
+      } else {
+        query += ` AND r.score = $${i++}`;
+        values.push(score);
+      }
+    }
+
+    const allowedSortFields = ["review_date", "score"];
+    const allowedSortOrder = ["asc", "desc"];
+    const sortField = allowedSortFields.includes(sort_by)
+      ? sort_by
+      : "review_date";
+    const order = allowedSortOrder.includes(sort_order) ? sort_order : "desc";
+
+    query += ` ORDER BY ${sortField} ${order}`;
+
+    const result = await client.query(query, values);
+
+    const reviews = result.rows.map((row) => ({
+      ...row,
+      level: mapLevel(row.level),
+    }));
+
+    return sendSuccessResponse(
+      res,
+      "Filtered reviews retrieved successfully",
+      reviews
+    );
+  } catch (err) {
+    console.error("Error filtering reviews:", err);
+    return sendErrorResponse(res, "Failed to filter reviews", err.message);
+  } finally {
+    client.release();
+  }
+};
