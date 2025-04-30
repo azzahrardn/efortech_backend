@@ -50,6 +50,27 @@ exports.createCertificate = async (req, res) => {
   try {
     await client.query("BEGIN"); // Start DB transaction
 
+    // Check if the participant has attended (attendance_status = true)
+    const attendanceRes = await client.query(
+      `SELECT attendance_status 
+     FROM registration_participant 
+     WHERE registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    if (!attendanceRes.rows.length) {
+      await client.query("ROLLBACK");
+      return sendBadRequestResponse(res, "Participant not found.");
+    }
+
+    if (attendanceRes.rows[0].attendance_status !== true) {
+      await client.query("ROLLBACK");
+      return sendBadRequestResponse(
+        res,
+        "Cannot issue certificate: participant has not attended."
+      );
+    }
+
     const certificate_id = generateCustomId("CERT");
 
     // Insert the certificate data into the database
