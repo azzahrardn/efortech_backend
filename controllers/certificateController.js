@@ -52,7 +52,7 @@ exports.createCertificate = async (req, res) => {
 
     const certificate_id = generateCustomId("CERT");
 
-    // Insert the registration data into `registration` table
+    // Insert the certificate data into the database
     await client.query(
       `INSERT INTO certificate
             (certificate_id, issued_date, expired_date, certificate_number, cert_file, registration_participant_id) 
@@ -70,6 +70,34 @@ exports.createCertificate = async (req, res) => {
     await client.query(
       "UPDATE registration_participant SET has_certificate= true WHERE registration_participant_id = $1",
       [registration_participant_id]
+    );
+
+    // Get registration_id and training_id
+    const regRes = await client.query(
+      `SELECT rp.registration_id, r.training_id 
+         FROM registration_participant rp
+         JOIN registration r ON rp.registration_id = r.registration_id
+         WHERE rp.registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    const training_id = regRes.rows[0]?.training_id;
+
+    if (!training_id) {
+      await client.query("ROLLBACK");
+      return sendBadRequestResponse(res, "Training not found.");
+    }
+
+    // Recalculate the number of graduates for the training
+    await client.query(
+      `UPDATE training SET graduates = (
+           SELECT COUNT(*) 
+           FROM registration_participant rp
+           JOIN registration r ON rp.registration_id = r.registration_id
+           WHERE rp.has_certificate = true AND r.training_id = $1
+         )
+         WHERE training_id = $1`,
+      [training_id]
     );
 
     await client.query("COMMIT"); // Commit transaction if all queries succeed
