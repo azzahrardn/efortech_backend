@@ -139,7 +139,12 @@ exports.getCompletedParticipants = async (req, res) => {
         u.*,
         r.*,
         t.training_id, 
-        t.training_name
+        t.training_name,
+        -- Check if a review exists for this participant
+        EXISTS (
+          SELECT 1 FROM review v 
+          WHERE v.registration_participant_id = rp.registration_participant_id
+        ) AS has_review
       FROM registration_participant rp
       JOIN registration r ON rp.registration_id = r.registration_id
       JOIN users u ON rp.user_id = u.user_id
@@ -149,6 +154,7 @@ exports.getCompletedParticipants = async (req, res) => {
     `;
 
     const result = await client.query(query);
+
     return sendSuccessResponse(
       res,
       "Completed participant registrations fetched successfully",
@@ -167,10 +173,10 @@ exports.getUserTrainingHistory = async (req, res) => {
   const client = await db.connect();
 
   try {
-    const { user_id } = req.params; // Get user_id from URL params or query
-    const { status } = req.query; // Get status from query parameters (optional)
+    const { user_id } = req.params; // Get user_id from URL parameters
+    const { status } = req.query; // Optional status filter from query
 
-    // Base query
+    // Base query including registration_participant_id and review existence check (has_review)
     let query = `
         SELECT 
           r.registration_id,
@@ -182,7 +188,13 @@ exports.getUserTrainingHistory = async (req, res) => {
           c.expired_date,
           u.fullname,
           u.email,
-          u.user_photo
+          u.user_photo,
+          rp.registration_participant_id,
+          -- Use EXISTS to check if a review exists for the given registration_participant_id
+          EXISTS (
+            SELECT 1 FROM review v 
+            WHERE v.registration_participant_id = rp.registration_participant_id
+          ) AS has_review
         FROM registration r
         JOIN registration_participant rp ON r.registration_id = rp.registration_id
         JOIN training t ON r.training_id = t.training_id
@@ -191,14 +203,15 @@ exports.getUserTrainingHistory = async (req, res) => {
         WHERE u.user_id = $1
       `;
 
-    // Add filter if status is provided
+    // Add optional filter for status if provided
     if (status) {
       query += ` AND r.status = $2`;
     }
 
+    // Order by training date in descending order
     query += ` ORDER BY r.training_date DESC`;
 
-    // Run query
+    // Execute the query with appropriate parameters
     const result = await client.query(
       query,
       status ? [user_id, status] : [user_id]
