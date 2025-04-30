@@ -18,6 +18,20 @@ const generateCustomId = (prefix) => {
   return `${prefix}-${timestamp}-${randomStr}`; // Format: PREFIX-YYYYMMDDHHMM-RANDOM
 };
 
+// Function to map training level to a readable format
+const mapLevel = (level) => {
+  switch (level.toString()) {
+    case "1":
+      return "Beginner";
+    case "2":
+      return "Intermediate";
+    case "3":
+      return "Advance";
+    default:
+      return level;
+  }
+};
+
 // Function to create a new review
 exports.createReview = async (req, res) => {
   // Extract input data from request body
@@ -98,6 +112,46 @@ exports.createReview = async (req, res) => {
     await client.query("ROLLBACK");
     console.error("Error creating review:", err);
     return sendErrorResponse(res, "Failed to create review", err.message);
+  } finally {
+    client.release();
+  }
+};
+
+// Get all reviews with user info and training info
+exports.getAllReviews = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const result = await client.query(
+      `SELECT 
+           r.review_id,
+           r.review_description,
+           r.score,
+           r.review_date,
+           u.fullname,
+           u.user_photo,
+           t.training_name,
+           t.level
+         FROM review r
+         JOIN registration_participant rp ON r.registration_participant_id = rp.registration_participant_id
+         JOIN users u ON rp.user_id = u.user_id
+         JOIN registration reg ON rp.registration_id = reg.registration_id
+         JOIN training t ON reg.training_id = t.training_id
+         ORDER BY r.review_date DESC`
+    );
+
+    const mappedData = result.rows.map((row) => ({
+      ...row,
+      level: mapLevel(row.level),
+    }));
+
+    return sendSuccessResponse(
+      res,
+      "All reviews retrieved successfully",
+      mappedData
+    );
+  } catch (err) {
+    console.error("Error getting all reviews:", err);
+    return sendErrorResponse(res, "Failed to retrieve reviews", err.message);
   } finally {
     client.release();
   }
