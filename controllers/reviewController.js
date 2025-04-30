@@ -32,7 +32,7 @@ exports.createReview = async (req, res) => {
     return sendBadRequestResponse(res, "Incomplete input data.");
   }
 
-  const client = await pool.connect();
+  const client = await db.connect();
   try {
     await client.query("BEGIN");
 
