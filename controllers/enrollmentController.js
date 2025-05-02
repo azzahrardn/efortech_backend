@@ -213,6 +213,23 @@ exports.getCompletedParticipants = async (req, res) => {
     const orderByField = allowedSortFields[sort_by] || "r.training_date";
     const orderDirection = sort_order.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
+    // Special mode: onprogress or completed
+    const { mode, ...restQuery } = req.query;
+
+    if (mode === "onprogress") {
+      filters.push(`(
+        rp.attendance_status IS NULL OR
+        (rp.attendance_status = true AND rp.has_certificate = false)
+      )`);
+    }
+
+    if (mode === "completed") {
+      filters.push(`(
+        rp.attendance_status = false OR
+        (rp.attendance_status = true AND rp.has_certificate = true)
+      )`);
+    }
+
     const query = `
       SELECT 
         rp.*,
