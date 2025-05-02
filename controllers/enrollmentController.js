@@ -133,6 +133,86 @@ exports.getCompletedParticipants = async (req, res) => {
   const client = await db.connect();
 
   try {
+    const {
+      attendance_status,
+      has_certificate,
+      search,
+      sort_by = "r.training_date",
+      sort_order = "DESC",
+      reg_date_start,
+      reg_date_end,
+      training_date_start,
+      training_date_end,
+    } = req.query;
+
+    const values = [];
+    const filters = [];
+
+    // Filter by registration.status = 4 (completed)
+    filters.push(`r.status = 4`);
+
+    // Optional filter by attendance_status
+    if (attendance_status === "true" || attendance_status === "false") {
+      values.push(attendance_status === "true");
+      filters.push(`rp.attendance_status = $${values.length}`);
+    } else if (attendance_status === "null") {
+      filters.push(`rp.attendance_status IS NULL`);
+    }
+
+    // Optional filter by has_certificate
+    if (has_certificate === "true" || has_certificate === "false") {
+      values.push(has_certificate === "true");
+      filters.push(`rp.has_certificate = $${values.length}`);
+    }
+
+    // Optional search on multiple fields
+    if (search) {
+      const ilikeSearch = `%${search}%`;
+      const searchConditions = [
+        `u.fullname ILIKE $${values.length + 1}`,
+        `CAST(rp.registration_participant_id AS TEXT) ILIKE $${
+          values.length + 1
+        }`,
+        `CAST(r.registration_date AS TEXT) ILIKE $${values.length + 1}`,
+        `CAST(r.training_date AS TEXT) ILIKE $${values.length + 1}`,
+        `t.training_name ILIKE $${values.length + 1}`,
+      ];
+      values.push(ilikeSearch);
+      filters.push(`(${searchConditions.join(" OR ")})`);
+    }
+
+    // Filter by registration_date range
+    if (reg_date_start) {
+      values.push(reg_date_start);
+      filters.push(`r.registration_date >= $${values.length}`);
+    }
+    if (reg_date_end) {
+      values.push(reg_date_end);
+      filters.push(`r.registration_date <= $${values.length}`);
+    }
+
+    // Filter by training_date range
+    if (training_date_start) {
+      values.push(training_date_start);
+      filters.push(`r.training_date >= $${values.length}`);
+    }
+    if (training_date_end) {
+      values.push(training_date_end);
+      filters.push(`r.training_date <= $${values.length}`);
+    }
+
+    // Allowed sortable columns mapping
+    const allowedSortFields = {
+      fullname: "u.fullname",
+      registration_participant_id: "rp.registration_participant_id",
+      registration_date: "r.registration_date",
+      training_date: "r.training_date",
+      training_name: "t.training_name",
+    };
+
+    const orderByField = allowedSortFields[sort_by] || "r.training_date";
+    const orderDirection = sort_order.toUpperCase() === "ASC" ? "ASC" : "DESC";
+
     const query = `
       SELECT 
         rp.*,
@@ -140,7 +220,6 @@ exports.getCompletedParticipants = async (req, res) => {
         r.*,
         t.training_id, 
         t.training_name,
-        -- Check if a review exists for this participant
         EXISTS (
           SELECT 1 FROM review v 
           WHERE v.registration_participant_id = rp.registration_participant_id
@@ -149,11 +228,11 @@ exports.getCompletedParticipants = async (req, res) => {
       JOIN registration r ON rp.registration_id = r.registration_id
       JOIN users u ON rp.user_id = u.user_id
       JOIN training t ON r.training_id = t.training_id
-      WHERE r.status = 4
-      ORDER BY r.training_date DESC, u.fullname ASC
+      ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
+      ORDER BY ${orderByField} ${orderDirection}
     `;
 
-    const result = await client.query(query);
+    const result = await client.query(query, values);
 
     return sendSuccessResponse(
       res,
