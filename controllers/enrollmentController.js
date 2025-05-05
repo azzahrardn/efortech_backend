@@ -136,7 +136,7 @@ exports.getCompletedParticipants = async (req, res) => {
     const {
       attendance_status,
       has_certificate,
-      search,
+      keyword,
       sort_by = "r.training_date",
       sort_order = "DESC",
       reg_date_start,
@@ -165,10 +165,10 @@ exports.getCompletedParticipants = async (req, res) => {
       filters.push(`rp.has_certificate = $${values.length}`);
     }
 
-    // Optional search on multiple fields
-    if (search) {
-      const ilikeSearch = `%${search}%`;
-      const searchConditions = [
+    // Optional keyword on multiple fields
+    if (keyword) {
+      const ilikeKeyword = `%${keyword}%`;
+      const keywordConditions = [
         `u.fullname ILIKE $${values.length + 1}`,
         `CAST(rp.registration_participant_id AS TEXT) ILIKE $${
           values.length + 1
@@ -177,8 +177,8 @@ exports.getCompletedParticipants = async (req, res) => {
         `CAST(r.training_date AS TEXT) ILIKE $${values.length + 1}`,
         `t.training_name ILIKE $${values.length + 1}`,
       ];
-      values.push(ilikeSearch);
-      filters.push(`(${searchConditions.join(" OR ")})`);
+      values.push(ilikeKeyword);
+      filters.push(`(${keywordConditions.join(" OR ")})`);
     }
 
     // Filter by registration_date range
