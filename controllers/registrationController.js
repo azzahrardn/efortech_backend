@@ -371,14 +371,25 @@ exports.searchRegistrations = async (req, res) => {
     // Extract query parameters
     const {
       keyword,
-      status,
       training_date_from,
       training_date_to,
       registration_date_from,
       registration_date_to,
       registrant_name,
       training_name,
+      sort_by = "r.registration_date",
+      sort_order = "DESC",
     } = req.query;
+
+    let { status } = req.query;
+
+    // Normalize status to always be an array if defined
+    if (status) {
+      if (!Array.isArray(status)) {
+        status = [status];
+      }
+      status = status.map((s) => parseInt(s, 10)).filter((s) => !isNaN(s));
+    }
 
     // Prepare base query
     let baseQuery = `
@@ -392,7 +403,7 @@ exports.searchRegistrations = async (req, res) => {
     const queryParams = [];
     let paramIndex = 1;
 
-    // Keyword search in registrant name or training name or registration_id
+    // Keyword search
     if (keyword) {
       baseQuery += ` AND (
         CAST(r.registration_id AS TEXT) ILIKE $${paramIndex} OR
@@ -404,11 +415,10 @@ exports.searchRegistrations = async (req, res) => {
       paramIndex++;
     }
 
-    // Filter by status (array)
-    if (status) {
-      const statusArray = status.split(",").map((s) => Number(s));
+    // Filter by status array
+    if (status && status.length > 0) {
       baseQuery += ` AND r.status = ANY($${paramIndex})`;
-      queryParams.push(statusArray);
+      queryParams.push(status);
       paramIndex++;
     }
 
@@ -438,22 +448,21 @@ exports.searchRegistrations = async (req, res) => {
       paramIndex++;
     }
 
-    // Filter by exact registrant name
+    // Filter by registrant name
     if (registrant_name) {
       baseQuery += ` AND LOWER(u.fullname) LIKE LOWER($${paramIndex})`;
       queryParams.push(`%${registrant_name}%`);
       paramIndex++;
     }
 
-    // Filter by exact training name
+    // Filter by training name
     if (training_name) {
       baseQuery += ` AND LOWER(t.training_name) LIKE LOWER($${paramIndex})`;
       queryParams.push(`%${training_name}%`);
       paramIndex++;
     }
 
-    const { sort_by = "r.registration_date", sort_order = "DESC" } = req.query;
-
+    // Sorting
     const allowedSortFields = {
       registration_id: "r.registration_id",
       registrant_name: "u.fullname",
@@ -466,14 +475,13 @@ exports.searchRegistrations = async (req, res) => {
 
     const orderBy = allowedSortFields[sort_by] || "r.registration_date";
     const order = sort_order.toUpperCase() === "ASC" ? "ASC" : "DESC";
-
     baseQuery += ` ORDER BY ${orderBy} ${order}`;
 
-    // Execute the query
+    // Execute query
     const registrationsResult = await client.query(baseQuery, queryParams);
     const registrations = registrationsResult.rows;
 
-    // For each registration, fetch its participants
+    // Fetch participants for each registration
     for (const reg of registrations) {
       const participantsResult = await client.query(
         `SELECT rp.*, u.fullname AS participant_name, u.email
@@ -482,7 +490,6 @@ exports.searchRegistrations = async (req, res) => {
          WHERE rp.registration_id = $1`,
         [reg.registration_id]
       );
-
       reg.participants = participantsResult.rows;
     }
 
