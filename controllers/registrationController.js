@@ -392,9 +392,14 @@ exports.searchRegistrations = async (req, res) => {
     const queryParams = [];
     let paramIndex = 1;
 
-    // Keyword search in registrant name or training name
+    // Keyword search in registrant name or training name or registration_id
     if (keyword) {
-      baseQuery += ` AND (LOWER(u.fullname) LIKE LOWER($${paramIndex}) OR LOWER(t.training_name) LIKE LOWER($${paramIndex}))`;
+      baseQuery += ` AND (
+        CAST(r.registration_id AS TEXT) ILIKE $${paramIndex} OR
+        LOWER(u.fullname) LIKE LOWER($${paramIndex}) OR
+        LOWER(t.training_name) LIKE LOWER($${paramIndex}) OR
+        CAST(r.registration_date AS TEXT) ILIKE $${paramIndex}
+      )`;
       queryParams.push(`%${keyword}%`);
       paramIndex++;
     }
@@ -421,7 +426,7 @@ exports.searchRegistrations = async (req, res) => {
     }
 
     // Filter by registration date range
-    if (training_date_from) {
+    if (registration_date_from) {
       baseQuery += ` AND r.registration_date >= $${paramIndex}`;
       queryParams.push(registration_date_from);
       paramIndex++;
@@ -447,8 +452,22 @@ exports.searchRegistrations = async (req, res) => {
       paramIndex++;
     }
 
-    // Sort by registration date desc
-    baseQuery += ` ORDER BY r.registration_date DESC`;
+    const { sort_by = "r.registration_date", sort_order = "DESC" } = req.query;
+
+    const allowedSortFields = {
+      registration_id: "r.registration_id",
+      registrant_name: "u.fullname",
+      training_name: "t.training_name",
+      training_date: "r.training_date",
+      registration_date: "r.registration_date",
+      participant_count:
+        "(SELECT COUNT(*) FROM registration_participant rp WHERE rp.registration_id = r.registration_id)",
+    };
+
+    const orderBy = allowedSortFields[sort_by] || "r.registration_date";
+    const order = sort_order.toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+    baseQuery += ` ORDER BY ${orderBy} ${order}`;
 
     // Execute the query
     const registrationsResult = await client.query(baseQuery, queryParams);
