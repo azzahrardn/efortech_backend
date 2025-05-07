@@ -381,15 +381,22 @@ exports.searchRegistrations = async (req, res) => {
       sort_order = "DESC",
       group_by_month,
       months_back,
+      group_by_date = "completed_date", // Default to completed_date
     } = req.query;
 
     if (group_by_month === "true") {
       let groupQuery = `
         SELECT 
-          TO_CHAR(r.completed_date, 'YYYY-MM') AS month,
-          COUNT(*) AS total_completed_trainings
+          TO_CHAR(r.${group_by_date}, 'YYYY-MM') AS month,
+          COUNT(r.registration_id) AS total_registrations,
+          SUM(r.participant_count) AS total_participants
         FROM registration r
-        WHERE r.completed_date IS NOT NULL
+        LEFT JOIN (
+          SELECT registration_id, COUNT(*) AS participant_count
+          FROM registration_participant
+          GROUP BY registration_id
+        ) rp ON r.registration_id = rp.registration_id
+        WHERE r.${group_by_date} IS NOT NULL
       `;
 
       const groupParams = [];
@@ -397,7 +404,20 @@ exports.searchRegistrations = async (req, res) => {
 
       // Filter by months_back
       if (months_back) {
-        groupQuery += ` AND r.completed_date >= NOW() - INTERVAL '${months_back} months'`;
+        groupQuery += ` AND r.${group_by_date} >= NOW() - INTERVAL '${months_back} months'`;
+      }
+
+      // Filter based on date range
+      if (registration_date_from) {
+        groupQuery += ` AND r.${group_by_date} >= $${index}`;
+        groupParams.push(registration_date_from);
+        index++;
+      }
+
+      if (registration_date_to) {
+        groupQuery += ` AND r.${group_by_date} <= $${index}`;
+        groupParams.push(registration_date_to);
+        index++;
       }
 
       groupQuery += ` GROUP BY month ORDER BY month DESC`;
@@ -406,7 +426,7 @@ exports.searchRegistrations = async (req, res) => {
 
       return sendSuccessResponse(
         res,
-        "Completed trainings per month",
+        `Trainings Registration per month by ${group_by_date}`,
         groupResult.rows,
         {
           total: groupResult.rows.length,
@@ -415,9 +435,9 @@ exports.searchRegistrations = async (req, res) => {
       );
     }
 
+    // Normal queries for registrations
     let { status } = req.query;
 
-    // Normalize status to always be an array if defined
     if (status) {
       if (!Array.isArray(status)) {
         status = [status];
@@ -425,7 +445,6 @@ exports.searchRegistrations = async (req, res) => {
       status = status.map((s) => parseInt(s, 10)).filter((s) => !isNaN(s));
     }
 
-    // Prepare base query
     let baseQuery = `
       SELECT r.*, u.fullname AS registrant_name, t.training_name
       FROM registration r
