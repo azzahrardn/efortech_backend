@@ -381,7 +381,8 @@ exports.searchRegistrations = async (req, res) => {
       sort_order = "DESC",
       group_by_month,
       months_back,
-      group_by_date = "completed_date", // Default to completed_date
+      group_by_date = "completed_date",
+      group_by_training = true,
     } = req.query;
 
     if (group_by_month === "true") {
@@ -432,6 +433,29 @@ exports.searchRegistrations = async (req, res) => {
           total: groupResult.rows.length,
           data: groupResult.rows,
         }
+      );
+    }
+
+    if (req.query.group_by_training === "true") {
+      const trainingQuery = `
+        SELECT
+          t.training_id,
+          t.training_name,
+          COUNT(DISTINCT r.registration_id) AS total_registrations,
+          COUNT(rp.registration_participant_id) AS total_participants
+        FROM training t
+        LEFT JOIN registration r ON r.training_id = t.training_id
+        LEFT JOIN registration_participant rp ON rp.registration_id = r.registration_id
+        GROUP BY t.training_id, t.training_name
+        ORDER BY total_participants DESC
+      `;
+
+      const trainingResult = await client.query(trainingQuery);
+
+      return sendSuccessResponse(
+        res,
+        "Total participants and registrations per training fetched successfully",
+        trainingResult.rows
       );
     }
 
