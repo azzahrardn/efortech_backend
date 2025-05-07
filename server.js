@@ -24,6 +24,7 @@ const registrationRoutes = require("./routes/registrationRoutes");
 const certificateRoutes = require("./routes/certificateRoutes");
 const enrollmentRoutes = require("./routes/enrollmentRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -35,6 +36,7 @@ app.use("/api/registration", registrationRoutes);
 app.use("/api/certificate", certificateRoutes);
 app.use("/api/enrollment", enrollmentRoutes);
 app.use("/api/review", reviewRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Test API
 app.get("/api/message", (req, res) => {
