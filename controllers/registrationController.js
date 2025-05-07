@@ -379,7 +379,41 @@ exports.searchRegistrations = async (req, res) => {
       training_name,
       sort_by = "r.registration_date",
       sort_order = "DESC",
+      group_by_month,
+      months_back,
     } = req.query;
+
+    if (group_by_month === "true") {
+      let groupQuery = `
+        SELECT 
+          TO_CHAR(r.completed_date, 'YYYY-MM') AS month,
+          COUNT(*) AS total_completed_trainings
+        FROM registration r
+        WHERE r.completed_date IS NOT NULL
+      `;
+
+      const groupParams = [];
+      let index = 1;
+
+      // Filter by months_back
+      if (months_back) {
+        groupQuery += ` AND r.completed_date >= NOW() - INTERVAL '${months_back} months'`;
+      }
+
+      groupQuery += ` GROUP BY month ORDER BY month DESC`;
+
+      const groupResult = await client.query(groupQuery, groupParams);
+
+      return sendSuccessResponse(
+        res,
+        "Completed trainings per month",
+        groupResult.rows,
+        {
+          total: groupResult.rows.length,
+          data: groupResult.rows,
+        }
+      );
+    }
 
     let { status } = req.query;
 
