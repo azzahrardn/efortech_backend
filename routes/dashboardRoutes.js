@@ -1,8 +1,34 @@
 const express = require("express");
 const router = express.Router();
-const { getGraduateStats } = require("../controllers/dashboardController");
+const {
+  getDashboardTodo,
+  getDashboardSummary,
+  getRegistrationStats,
+  getCertificateSummary,
+  getTrainingOverview,
+  getTopTrainingsByRating,
+  getMonthlyRegistrations,
+} = require("../controllers/dashboardController");
 
-// GET /api/dashboard/graduate-stats - Get graduate statistics
-router.get("/graduate-stats", getGraduateStats);
+// Dashboard Todo
+router.get("/todo", getDashboardTodo);
+
+// Dashboard Summary
+router.get("/summary", getDashboardSummary);
+
+// Graduate Stats
+router.get("/regis-stats", getRegistrationStats);
+
+// Certificate Issued Monthly
+router.get("/cert-stats", getCertificateSummary);
+
+// Training Overview
+router.get("/training-overview", getTrainingOverview);
+
+// Top Trainings by Rating
+router.get("/top-trainings", getTopTrainingsByRating);
+
+// Monthly Registrations
+router.get("/monthly-registrations", getMonthlyRegistrations);
 
 module.exports = router;
