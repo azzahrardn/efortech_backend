@@ -143,7 +143,32 @@ exports.getCompletedParticipants = async (req, res) => {
       reg_date_end,
       training_date_start,
       training_date_end,
+      group_by_training = true,
     } = req.query;
+
+    if (req.query.group_by_training === "true") {
+      const groupQuery = `
+        SELECT 
+          t.training_id,
+          t.training_name,
+          COUNT(*) FILTER (WHERE rp.has_certificate = true) AS total_graduates,
+          COUNT(*) AS total_participants
+        FROM registration_participant rp
+        JOIN registration r ON rp.registration_id = r.registration_id
+        JOIN training t ON r.training_id = t.training_id
+        WHERE r.status = 4
+        GROUP BY t.training_id, t.training_name
+        ORDER BY total_graduates DESC
+      `;
+
+      const groupResult = await client.query(groupQuery);
+
+      return sendSuccessResponse(
+        res,
+        "Graduation statistics per training fetched successfully",
+        groupResult.rows
+      );
+    }
 
     const values = [];
     const filters = [];
