@@ -258,13 +258,47 @@ exports.searchCertificates = async (req, res) => {
       training_name,
       certificate_number,
       fullname,
-      issued_date, // exact match
-      expired_date, // exact match
+      issued_date,
+      expired_date,
       issued_date_from,
       issued_date_to,
       expired_date_from,
       expired_date_to,
+      group_by_month,
+      months_back,
     } = req.query;
+
+    if (group_by_month === "true") {
+      let groupQuery = `
+        SELECT 
+          TO_CHAR(c.issued_date, 'YYYY-MM') AS month,
+          COUNT(*) AS total_certificates
+        FROM certificate c
+        WHERE 1=1
+      `;
+
+      const groupParams = [];
+      let index = 1;
+
+      // Filter based on last N months
+      if (months_back) {
+        groupQuery += ` AND c.issued_date >= NOW() - INTERVAL '${months_back} months'`;
+      }
+
+      groupQuery += ` GROUP BY month ORDER BY month DESC`;
+
+      const groupResult = await client.query(groupQuery, groupParams);
+
+      return sendSuccessResponse(
+        res,
+        "Certificate summary per month",
+        groupResult.rows,
+        {
+          total: groupResult.rowCount,
+          data: groupResult.rows,
+        }
+      );
+    }
 
     let baseQuery = `
         SELECT 
@@ -369,7 +403,11 @@ exports.searchCertificates = async (req, res) => {
     return sendSuccessResponse(
       res,
       "Certificates searched successfully",
-      certificates
+      certificates,
+      {
+        total: certificates.length,
+        data: certificates,
+      }
     );
   } catch (err) {
     console.error("Search certificates error:", err);
