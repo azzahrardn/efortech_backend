@@ -326,6 +326,18 @@ exports.searchCertificates = async (req, res) => {
     const queryParams = [];
     let paramIndex = 1;
 
+    // Search by param
+    if (req.query.query) {
+      const generalQuery = `%${req.query.query.toLowerCase()}%`;
+      baseQuery += ` AND (
+        LOWER(u.fullname) LIKE $${paramIndex}
+        OR LOWER(c.certificate_number) LIKE $${paramIndex}
+        OR LOWER(t.training_name) LIKE $${paramIndex}
+      )`;
+      queryParams.push(generalQuery);
+      paramIndex++;
+    }
+
     // Search by training_name (case-insensitive, partial match)
     if (training_name) {
       baseQuery += ` AND LOWER(t.training_name) LIKE LOWER($${paramIndex})`;
