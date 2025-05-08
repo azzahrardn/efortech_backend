@@ -245,7 +245,12 @@ exports.getUserCertificates = async (req, res) => {
         ORDER BY uc.created_at DESC
       `);
 
-    return sendSuccessResponse(res, "Certificates retrieved", result.rows);
+    const certificates = result.rows.map((row) => ({
+      ...row,
+      validity_status: getCertificateStatus(row.expired_date),
+    }));
+
+    return sendSuccessResponse(res, "Certificates retrieved", certificates);
   } catch (err) {
     console.error("Get certificates error:", err);
     return sendErrorResponse(
@@ -296,7 +301,10 @@ exports.getUserCertificateById = async (req, res) => {
       return sendSuccessResponse(res, "Certificate not found");
     }
 
-    return sendSuccessResponse(res, "Certificate retrieved", result.rows[0]);
+    const cert = result.rows[0];
+    cert.validity_status = getCertificateStatus(cert.expired_date);
+
+    return sendSuccessResponse(res, "Certificate retrieved", cert);
   } catch (err) {
     console.error("Get certificate by ID error:", err);
     return sendErrorResponse(
@@ -429,7 +437,12 @@ exports.searchUserCertificates = async (req, res) => {
       return sendSuccessResponse(res, "Certificate not found", []);
     }
 
-    return sendSuccessResponse(res, "Search results", result.rows);
+    const results = result.rows.map((row) => ({
+      ...row,
+      validity_status: getCertificateStatus(row.expired_date),
+    }));
+
+    return sendSuccessResponse(res, "Search results", results);
   } catch (err) {
     console.error("Search certificate error:", err);
     return sendErrorResponse(res, "Failed to search certificates", err.message);
