@@ -248,7 +248,7 @@ exports.getUserCertificateById = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendBadRequestResponse(res, "Certificate not found");
+      return sendSuccessResponse(res, "Certificate not found");
     }
 
     return sendSuccessResponse(res, "Certificate retrieved", result.rows[0]);
@@ -259,6 +259,135 @@ exports.getUserCertificateById = async (req, res) => {
       "Failed to retrieve certificate",
       err.message
     );
+  } finally {
+    client.release();
+  }
+};
+
+// Search certificates with multiple filters and optional fulltext query
+exports.searchUserCertificates = async (req, res) => {
+  const {
+    user_id,
+    fullname,
+    cert_type,
+    issuer,
+    issued_date,
+    expired_date,
+    certificate_number,
+    status,
+    created_at,
+    query,
+    sort_by = "created_at",
+    sort_order = "desc",
+  } = req.query;
+
+  const allowedSortFields = [
+    "fullname",
+    "cert_type",
+    "issuer",
+    "issued_date",
+    "expired_date",
+    "certificate_number",
+    "status",
+    "created_at",
+  ];
+  const sortField = allowedSortFields.includes(sort_by)
+    ? sort_by
+    : "created_at";
+  const sortOrder = sort_order.toLowerCase() === "asc" ? "ASC" : "DESC";
+
+  const conditions = [];
+  const values = [];
+  let idx = 1;
+
+  if (user_id) {
+    conditions.push(`CAST(uc.user_id AS TEXT) ILIKE $${idx++}`);
+    values.push(`%${user_id}%`);
+  }
+  if (fullname) {
+    conditions.push(`LOWER(COALESCE(u.fullname, uc.fullname)) ILIKE $${idx++}`);
+    values.push(`%${fullname.toLowerCase()}%`);
+  }
+  if (cert_type) {
+    conditions.push(`LOWER(COALESCE(uc.cert_type, '')) ILIKE $${idx++}`);
+    values.push(`%${cert_type.toLowerCase()}%`);
+  }
+  if (issuer) {
+    conditions.push(`LOWER(COALESCE(uc.issuer, '')) ILIKE $${idx++}`);
+    values.push(`%${issuer.toLowerCase()}%`);
+  }
+  if (issued_date) {
+    conditions.push(`DATE(uc.issued_date) = $${idx++}`);
+    values.push(issued_date);
+  }
+  if (expired_date) {
+    conditions.push(`DATE(uc.expired_date) = $${idx++}`);
+    values.push(expired_date);
+  }
+  if (certificate_number) {
+    conditions.push(
+      `LOWER(COALESCE(uc.certificate_number, '')) ILIKE $${idx++}`
+    );
+    values.push(`%${certificate_number.toLowerCase()}%`);
+  }
+  if (status) {
+    conditions.push(`uc.status = $${idx++}`);
+    values.push(status);
+  }
+  if (created_at) {
+    conditions.push(`DATE(uc.created_at) = $${idx++}`);
+    values.push(created_at);
+  }
+
+  if (query) {
+    conditions.push(`(
+        CAST(uc.user_id AS TEXT) ILIKE $${idx} OR
+        LOWER(COALESCE(u.fullname, uc.fullname)) ILIKE $${idx} OR
+        LOWER(COALESCE(uc.cert_type, '')) ILIKE $${idx} OR
+        LOWER(COALESCE(uc.certificate_number, '')) ILIKE $${idx}
+      )`);
+    values.push(`%${query.toLowerCase()}%`);
+    idx++;
+  }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const client = await db.connect();
+  try {
+    const result = await client.query(
+      `
+        SELECT 
+          uc.user_certificate_id,
+          uc.user_id,
+          COALESCE(u.fullname, uc.fullname) AS fullname,
+          uc.cert_type,
+          uc.issuer,
+          uc.issued_date,
+          uc.expired_date,
+          uc.certificate_number,
+          uc.cert_file,
+          uc.status,
+          uc.created_at,
+          uc.verified_by,
+          uc.verification_date,
+          uc.notes
+        FROM user_certificates uc
+        LEFT JOIN users u ON u.user_id = uc.user_id
+        ${whereClause}
+        ORDER BY ${sortField} ${sortOrder}
+        `,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return sendSuccessResponse(res, "Certificate not found", []);
+    }
+
+    return sendSuccessResponse(res, "Search results", result.rows);
+  } catch (err) {
+    console.error("Search certificate error:", err);
+    return sendErrorResponse(res, "Failed to search certificates", err.message);
   } finally {
     client.release();
   }
