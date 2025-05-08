@@ -14,7 +14,7 @@ const {
 router.post("/", createUserCertificate);
 
 // POST /api/ucertificate - Create a new user certificate (by admin)
-router.post("/uploaded-by-admin", createUserCertificateByAdmin);
+router.post("/create-by-admin", createUserCertificateByAdmin);
 
 // Upload certificate file
 router.post("/upload-ucertificate", uploadFile, (req, res) => {
