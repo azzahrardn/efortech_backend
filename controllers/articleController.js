@@ -326,3 +326,13 @@ exports.getArticlesByTag = async (req, res) => {
     sendErrorResponse(res, "GENERAL_ERROR");
   }
 };
+
+exports.updateViewsArticle = async (req, res) => {
+  const { article_id } = req.params;
+  try {
+    await db.query("UPDATE articles SET views = views + 1 WHERE article_id = $1", [article_id]);
+    res.status(200).json({ message: "View incremented" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
