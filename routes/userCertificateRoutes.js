@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   createUserCertificate,
+  createUserCertificateByAdmin,
 } = require("../controllers/userCertificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -11,6 +12,9 @@ const {
 
 // POST /api/ucertificate - Create a new user certificate
 router.post("/", createUserCertificate);
+
+// POST /api/ucertificate - Create a new user certificate (by admin)
+router.post("/uploaded-by-admin", createUserCertificateByAdmin);
 
 // Upload certificate file
 router.post("/upload-ucertificate", uploadFile, (req, res) => {

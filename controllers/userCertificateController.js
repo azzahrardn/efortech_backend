@@ -96,3 +96,81 @@ exports.createUserCertificate = async (req, res) => {
     client.release();
   }
 };
+
+// Admin-side function to upload a validated certificate for user
+exports.createUserCertificateByAdmin = async (req, res) => {
+  const {
+    user_id,
+    fullname,
+    cert_type,
+    issuer,
+    issued_date,
+    expired_date,
+    certificate_number,
+    cert_file,
+    admin_id, // comes from frontend auth
+    notes,
+  } = req.body;
+
+  if (
+    !fullname ||
+    !cert_type ||
+    !issuer ||
+    !issued_date ||
+    !certificate_number ||
+    !cert_file ||
+    !admin_id
+  ) {
+    return sendBadRequestResponse(res, "Missing required certificate data");
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    const user_certificate_id = generateCustomId("UCRT");
+
+    await client.query(
+      `INSERT INTO user_certificates (
+          user_certificate_id, user_id, fullname, cert_type, issuer,
+          issued_date, expired_date, certificate_number, cert_file,
+          status, created_at, verified_by, verification_date, notes
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9,
+          2, NOW(), $10, NOW(), $11
+        )`,
+      [
+        user_certificate_id,
+        user_id || null,
+        fullname,
+        cert_type,
+        issuer,
+        issued_date,
+        expired_date || null,
+        certificate_number,
+        cert_file,
+        admin_id,
+        notes || null,
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    return sendSuccessResponse(
+      res,
+      "User certificate (admin-verified) created successfully",
+      { user_certificate_id }
+    );
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Create admin-side certificate error:", err);
+    return sendErrorResponse(
+      res,
+      "Failed to create validated certificate",
+      err.message
+    );
+  } finally {
+    client.release();
+  }
+};
