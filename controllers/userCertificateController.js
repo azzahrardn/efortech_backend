@@ -175,6 +175,51 @@ exports.createUserCertificateByAdmin = async (req, res) => {
   }
 };
 
+// Update status and verification info of user certificate
+exports.updateUserCertificateStatus = async (req, res) => {
+  const { user_certificate_id, status, admin_id, notes } = req.body;
+
+  if (!status || !admin_id) {
+    return sendErrorResponse(res, "Status dan admin_id wajib diisi");
+  }
+
+  const client = await db.connect();
+  try {
+    const query = `
+        UPDATE user_certificates
+        SET 
+          status = $1,
+          verified_by = $2,
+          notes = $3,
+          verification_date = NOW()
+        WHERE user_certificate_id = $4
+        RETURNING *;
+      `;
+
+    const values = [status, admin_id, notes || null, user_certificate_id];
+    const result = await client.query(query, values);
+
+    if (result.rowCount === 0) {
+      return sendErrorResponse(res, "Sertifikat tidak ditemukan");
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Status sertifikat berhasil diperbarui",
+      result.rows[0]
+    );
+  } catch (err) {
+    console.error("Update status error:", err);
+    return sendErrorResponse(
+      res,
+      "Gagal memperbarui status sertifikat",
+      err.message
+    );
+  } finally {
+    client.release();
+  }
+};
+
 // Get all user certificates
 exports.getUserCertificates = async (req, res) => {
   const client = await db.connect();

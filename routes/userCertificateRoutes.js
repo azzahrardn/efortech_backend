@@ -6,6 +6,7 @@ const {
   getUserCertificates,
   getUserCertificateById,
   searchUserCertificates,
+  updateUserCertificateStatus,
 } = require("../controllers/userCertificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -18,6 +19,9 @@ router.post("/", createUserCertificate);
 
 // POST /api/ucertificate/create-by-admin - Create a new user certificate (by admin)
 router.post("/create-by-admin", createUserCertificateByAdmin);
+
+// PUT /api/ucertificates/update-status
+router.put("/update-status", updateUserCertificateStatus);
 
 // GET /api/ucertificate - get all user certificates
 router.get("/", getUserCertificates);
