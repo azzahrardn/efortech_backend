@@ -37,6 +37,7 @@ const multerUpload = multer({
 const getFolderFromPath = (reqPath) => {
   if (reqPath.includes("/registration")) return "registration_payment";
   if (reqPath.includes("/certificate")) return "certificate_files";
+  if (reqPath.includes("/ucertificate")) return "user_certificate_files";
   return "misc_files";
 };
 

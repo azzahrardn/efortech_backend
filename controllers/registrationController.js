@@ -379,11 +379,89 @@ exports.searchRegistrations = async (req, res) => {
       training_name,
       sort_by = "r.registration_date",
       sort_order = "DESC",
+      group_by_month,
+      months_back,
+      group_by_date = "completed_date",
+      group_by_training = true,
     } = req.query;
 
+    if (group_by_month === "true") {
+      let groupQuery = `
+        SELECT 
+          TO_CHAR(r.${group_by_date}, 'YYYY-MM') AS month,
+          COUNT(r.registration_id) AS total_registrations,
+          SUM(r.participant_count) AS total_participants
+        FROM registration r
+        LEFT JOIN (
+          SELECT registration_id, COUNT(*) AS participant_count
+          FROM registration_participant
+          GROUP BY registration_id
+        ) rp ON r.registration_id = rp.registration_id
+        WHERE r.${group_by_date} IS NOT NULL
+      `;
+
+      const groupParams = [];
+      let index = 1;
+
+      // Filter by months_back
+      if (months_back) {
+        groupQuery += ` AND r.${group_by_date} >= NOW() - INTERVAL '${months_back} months'`;
+      }
+
+      // Filter based on date range
+      if (registration_date_from) {
+        groupQuery += ` AND r.${group_by_date} >= $${index}`;
+        groupParams.push(registration_date_from);
+        index++;
+      }
+
+      if (registration_date_to) {
+        groupQuery += ` AND r.${group_by_date} <= $${index}`;
+        groupParams.push(registration_date_to);
+        index++;
+      }
+
+      groupQuery += ` GROUP BY month ORDER BY month DESC`;
+
+      const groupResult = await client.query(groupQuery, groupParams);
+
+      return sendSuccessResponse(
+        res,
+        `Trainings Registration per month by ${group_by_date}`,
+        groupResult.rows,
+        {
+          total: groupResult.rows.length,
+          data: groupResult.rows,
+        }
+      );
+    }
+
+    if (req.query.group_by_training === "true") {
+      const trainingQuery = `
+        SELECT
+          t.training_id,
+          t.training_name,
+          COUNT(DISTINCT r.registration_id) AS total_registrations,
+          COUNT(rp.registration_participant_id) AS total_participants
+        FROM training t
+        LEFT JOIN registration r ON r.training_id = t.training_id
+        LEFT JOIN registration_participant rp ON rp.registration_id = r.registration_id
+        GROUP BY t.training_id, t.training_name
+        ORDER BY total_participants DESC
+      `;
+
+      const trainingResult = await client.query(trainingQuery);
+
+      return sendSuccessResponse(
+        res,
+        "Total participants and registrations per training fetched successfully",
+        trainingResult.rows
+      );
+    }
+
+    // Normal queries for registrations
     let { status } = req.query;
 
-    // Normalize status to always be an array if defined
     if (status) {
       if (!Array.isArray(status)) {
         status = [status];
@@ -391,7 +469,6 @@ exports.searchRegistrations = async (req, res) => {
       status = status.map((s) => parseInt(s, 10)).filter((s) => !isNaN(s));
     }
 
-    // Prepare base query
     let baseQuery = `
       SELECT r.*, u.fullname AS registrant_name, t.training_name
       FROM registration r
