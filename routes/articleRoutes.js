@@ -8,6 +8,7 @@ const {
   searchArticles,
   getArticlesByCategory,
   getArticlesByTag,
+  updateViewsArticle,
 } = require("../controllers/articleController");
 const {
   sendSuccessResponse,
@@ -19,6 +20,9 @@ const router = express.Router();
 
 // Endpoint for adding an article
 router.post("/add", addArticle);
+
+// Endpoint for updating article views
+router.patch("/update-views/:article_id", updateViewsArticle);
 
 // Endpoint for getting all articles
 router.get("/", getArticles);
