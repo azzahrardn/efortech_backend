@@ -212,3 +212,54 @@ exports.getUserCertificates = async (req, res) => {
     client.release();
   }
 };
+
+// Get user certificate by ID
+exports.getUserCertificateById = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return sendBadRequestResponse(res, "Missing certificate ID");
+  }
+
+  const client = await db.connect();
+  try {
+    const result = await client.query(
+      `
+        SELECT 
+          uc.user_certificate_id,
+          uc.user_id,
+          COALESCE(u.fullname, uc.fullname) AS fullname,
+          uc.cert_type,
+          uc.issuer,
+          uc.issued_date,
+          uc.expired_date,
+          uc.certificate_number,
+          uc.cert_file,
+          uc.status,
+          uc.created_at,
+          uc.verified_by,
+          uc.verification_date,
+          uc.notes
+        FROM user_certificates uc
+        LEFT JOIN users u ON u.user_id = uc.user_id
+        WHERE uc.user_certificate_id = $1
+        `,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return sendBadRequestResponse(res, "Certificate not found");
+    }
+
+    return sendSuccessResponse(res, "Certificate retrieved", result.rows[0]);
+  } catch (err) {
+    console.error("Get certificate by ID error:", err);
+    return sendErrorResponse(
+      res,
+      "Failed to retrieve certificate",
+      err.message
+    );
+  } finally {
+    client.release();
+  }
+};
