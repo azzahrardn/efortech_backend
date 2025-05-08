@@ -333,6 +333,8 @@ exports.searchCertificates = async (req, res) => {
         LOWER(u.fullname) LIKE $${paramIndex}
         OR LOWER(c.certificate_number) LIKE $${paramIndex}
         OR LOWER(t.training_name) LIKE $${paramIndex}
+        OR LOWER(CAST(c.issued_date AS TEXT)) LIKE $${paramIndex}
+        OR LOWER(CAST(c.expired_date AS TEXT)) LIKE $${paramIndex}
       )`;
       queryParams.push(generalQuery);
       paramIndex++;
