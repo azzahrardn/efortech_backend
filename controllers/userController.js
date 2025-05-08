@@ -56,6 +56,42 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
+exports.getUserProfileNoToken = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await db.query(
+      `SELECT users.user_id, users.fullname, users.email, users.phone_number, users.institution, users.gender, users.birthdate, users.user_photo, users.created_at, roles.role_desc 
+       FROM users 
+       JOIN roles ON users.role_id = roles.role_id 
+       WHERE users.user_id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return sendSuccessResponse(res, "User not found");
+    }
+
+    const user = result.rows[0];
+
+    return sendSuccessResponse(res, "User profile fetched successfully", {
+      user_id: user.user_id,
+      email: user.email,
+      role: user.role_desc,
+      fullname: user.fullname,
+      phone_number: user.phone_number,
+      institution: user.institution,
+      gender: user.gender,
+      birthdate: user.birthdate,
+      user_photo: user.user_photo,
+      created_at: user.created_at,
+    });
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return sendErrorResponse(res, "Failed to fetch user data");
+  }
+};
+
 // Change user password using Firebase Authentication
 exports.changePassword = async (req, res) => {
   const userId = req.user.uid;

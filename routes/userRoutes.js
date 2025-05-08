@@ -4,6 +4,7 @@ const {
   changePassword,
   updateUserProfile,
   searchUserByEmail,
+  getUserProfileNoToken,
 } = require("../controllers/userController");
 const verifyToken = require("../middlewares/authMiddleware");
 const uploadFile = require("../middlewares/imageUpload");
@@ -16,6 +17,9 @@ const router = express.Router();
 
 // GET - User profile route
 router.get("/me", verifyToken, getUserProfile);
+
+// GET - User profile (no token)
+router.get("/:userId", getUserProfileNoToken);
 
 // GET - Search User by Email
 router.get("/search", searchUserByEmail);
