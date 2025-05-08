@@ -174,3 +174,41 @@ exports.createUserCertificateByAdmin = async (req, res) => {
     client.release();
   }
 };
+
+// Get all user certificates
+exports.getUserCertificates = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const result = await client.query(`
+        SELECT 
+          uc.user_certificate_id,
+          uc.user_id,
+          COALESCE(u.fullname, uc.fullname) AS fullname,
+          uc.cert_type,
+          uc.issuer,
+          uc.issued_date,
+          uc.expired_date,
+          uc.certificate_number,
+          uc.cert_file,
+          uc.status,
+          uc.created_at,
+          uc.verified_by,
+          uc.verification_date,
+          uc.notes
+        FROM user_certificates uc
+        LEFT JOIN users u ON u.user_id = uc.user_id
+        ORDER BY uc.created_at DESC
+      `);
+
+    return sendSuccessResponse(res, "Certificates retrieved", result.rows);
+  } catch (err) {
+    console.error("Get certificates error:", err);
+    return sendErrorResponse(
+      res,
+      "Failed to retrieve certificates",
+      err.message
+    );
+  } finally {
+    client.release();
+  }
+};
