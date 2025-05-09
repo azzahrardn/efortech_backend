@@ -384,8 +384,10 @@ exports.searchUserCertificates = async (req, res) => {
     values.push(`%${certificate_number.toLowerCase()}%`);
   }
   if (status) {
-    conditions.push(`uc.status = $${idx++}`);
-    values.push(status);
+    const statusArray = Array.isArray(status) ? status : [status];
+    const placeholders = statusArray.map(() => `$${idx++}`).join(", ");
+    conditions.push(`uc.status IN (${placeholders})`);
+    values.push(...statusArray);
   }
   if (created_at) {
     conditions.push(`DATE(uc.created_at) = $${idx++}`);
