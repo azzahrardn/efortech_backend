@@ -238,15 +238,21 @@ exports.getUserCertificates = async (req, res) => {
           uc.status,
           uc.created_at,
           uc.verified_by,
+          COALESCE(admin.fullname, admin.email) AS verified_by_name,
           uc.verification_date,
           uc.notes
         FROM user_certificates uc
         LEFT JOIN users u ON u.user_id = uc.user_id
+        LEFT JOIN users admin ON admin.user_id = uc.verified_by
         ORDER BY uc.created_at DESC
       `);
 
     const certificates = result.rows.map((row) => ({
       ...row,
+      validity_status: getCertificateStatus(row.expired_date),
+      verified_by: row.verified_by
+        ? `${row.verified_by} (${row.verified_by_name})`
+        : null,
       validity_status: getCertificateStatus(row.expired_date),
     }));
 
@@ -288,10 +294,12 @@ exports.getUserCertificateById = async (req, res) => {
           uc.status,
           uc.created_at,
           uc.verified_by,
+          COALESCE(admin.fullname, admin.email) AS verified_by_name,
           uc.verification_date,
           uc.notes
         FROM user_certificates uc
         LEFT JOIN users u ON u.user_id = uc.user_id
+        LEFT JOIN users admin ON admin.user_id = uc.verified_by
         WHERE uc.user_certificate_id = $1
         `,
       [id]
@@ -303,6 +311,9 @@ exports.getUserCertificateById = async (req, res) => {
 
     const cert = result.rows[0];
     cert.validity_status = getCertificateStatus(cert.expired_date);
+    cert.verified_by = cert.verified_by
+      ? `${cert.verified_by} (${cert.verified_by_name})`
+      : null;
 
     return sendSuccessResponse(res, "Certificate retrieved", cert);
   } catch (err) {
@@ -425,10 +436,12 @@ exports.searchUserCertificates = async (req, res) => {
           uc.status,
           uc.created_at,
           uc.verified_by,
+          COALESCE(admin.fullname, admin.email) AS verified_by_name,
           uc.verification_date,
           uc.notes
         FROM user_certificates uc
         LEFT JOIN users u ON u.user_id = uc.user_id
+        LEFT JOIN users admin ON admin.user_id = uc.verified_by
         ${whereClause}
         ORDER BY ${sortField} ${sortOrder}
         `,
@@ -441,6 +454,10 @@ exports.searchUserCertificates = async (req, res) => {
 
     const results = result.rows.map((row) => ({
       ...row,
+      validity_status: getCertificateStatus(row.expired_date),
+      verified_by: row.verified_by
+        ? `${row.verified_by} (${row.verified_by_name})`
+        : null,
       validity_status: getCertificateStatus(row.expired_date),
     }));
 
