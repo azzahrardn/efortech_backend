@@ -22,7 +22,10 @@ exports.getDashboardTodo = async (req, res) => {
             ) AS unmarked_attendance,
 
             -- Attendance marked true but no certificate yet (has_certificate = false)
-            (SELECT COUNT(*) FROM registration_participant WHERE attendance_status = true AND has_certificate = false) AS pending_certificates
+            (SELECT COUNT(*) FROM registration_participant WHERE attendance_status = true AND has_certificate = false) AS pending_certificates,
+
+            -- User uploaded certificate that need to be reviewed
+            (SELECT COUNT(*) FROM user_certificates WHERE status = 1) AS pending_user_certificates
         `;
 
     const result = await client.query(query);
