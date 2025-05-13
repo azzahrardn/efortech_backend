@@ -85,12 +85,12 @@ exports.searchCertificates = async (req, res) => {
       issued_date,
       expired_date,
       q,
+      type,
     } = req.query;
 
     const cert1Conditions = [];
     const cert1Values = [];
 
-    // Helper to add condition for query 1
     const addCert1Condition = (field, value, tableAlias = "") => {
       const placeholder = `$${cert1Values.length + 1}`;
       const qualifiedField = tableAlias ? `${tableAlias}.${field}` : field;
@@ -124,8 +124,11 @@ exports.searchCertificates = async (req, res) => {
       );
     }
 
-    // Query for certificate type 1
-    let query1 = `
+    let cert1WithStatus = [];
+    let cert2WithStatus = [];
+
+    if (!type || type === "1") {
+      let query1 = `
         SELECT 
           c.certificate_id,
           c.certificate_number,
@@ -143,53 +146,53 @@ exports.searchCertificates = async (req, res) => {
         JOIN training t ON r.training_id = t.training_id
       `;
 
-    if (cert1Conditions.length > 0) {
-      query1 += ` WHERE ` + cert1Conditions.join(" AND ");
+      if (cert1Conditions.length > 0) {
+        query1 += ` WHERE ` + cert1Conditions.join(" AND ");
+      }
+
+      const cert1 = await client.query(query1, cert1Values);
+      cert1WithStatus = cert1.rows.map((cert) => ({
+        ...cert,
+        validity_status: getValidityStatus(cert.expired_date),
+      }));
     }
 
-    const cert1 = await client.query(query1, cert1Values);
-    const cert1WithStatus = cert1.rows.map((cert) => ({
-      ...cert,
-      validity_status: getValidityStatus(cert.expired_date),
-    }));
+    if (!type || type === "2") {
+      const cert2Conditions = [`status = 2`];
+      const cert2Values = [];
 
-    // ==== Certificate Type 2 ====
-    const cert2Conditions = [`status = 2`];
-    const cert2Values = [];
+      const addCert2Condition = (field, value) => {
+        const placeholder = `$${cert2Values.length + 1}`;
+        cert2Conditions.push(`${field}::text ILIKE ${placeholder}`);
+        cert2Values.push(`%${value}%`);
+      };
 
-    // Helper to add condition for query 2
-    const addCert2Condition = (field, value) => {
-      const placeholder = `$${cert2Values.length + 1}`;
-      cert2Conditions.push(`${field}::text ILIKE ${placeholder}`);
-      cert2Values.push(`%${value}%`);
-    };
+      if (certificate_number)
+        addCert2Condition("certificate_number", certificate_number);
+      if (fullname) addCert2Condition("fullname", fullname);
+      if (certificate_title) addCert2Condition("cert_type", certificate_title);
+      if (issued_date) addCert2Condition("issued_date", issued_date);
+      if (expired_date) addCert2Condition("expired_date", expired_date);
 
-    if (certificate_number)
-      addCert2Condition("certificate_number", certificate_number);
-    if (fullname) addCert2Condition("fullname", fullname);
-    if (certificate_title) addCert2Condition("cert_type", certificate_title);
-    if (issued_date) addCert2Condition("issued_date", issued_date);
-    if (expired_date) addCert2Condition("expired_date", expired_date);
-
-    if (q) {
-      const searchValue = `%${q}%`;
-      cert2Conditions.push(`(
+      if (q) {
+        const searchValue = `%${q}%`;
+        cert2Conditions.push(`(
           certificate_number ILIKE $${cert2Values.length + 1} OR
           fullname ILIKE $${cert2Values.length + 2} OR
           cert_type ILIKE $${cert2Values.length + 3} OR
           CAST(issued_date AS TEXT) ILIKE $${cert2Values.length + 4} OR
           CAST(expired_date AS TEXT) ILIKE $${cert2Values.length + 5}
         )`);
-      cert2Values.push(
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue
-      );
-    }
+        cert2Values.push(
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue
+        );
+      }
 
-    let query2 = `
+      let query2 = `
         SELECT 
           user_certificate_id AS certificate_id,
           certificate_number,
@@ -203,17 +206,23 @@ exports.searchCertificates = async (req, res) => {
         FROM user_certificates
       `;
 
-    if (cert2Conditions.length > 0) {
-      query2 += ` WHERE ` + cert2Conditions.join(" AND ");
+      if (cert2Conditions.length > 0) {
+        query2 += ` WHERE ` + cert2Conditions.join(" AND ");
+      }
+
+      const cert2 = await client.query(query2, cert2Values);
+      cert2WithStatus = cert2.rows.map((cert) => ({
+        ...cert,
+        validity_status: getValidityStatus(cert.expired_date),
+      }));
     }
 
-    const cert2 = await client.query(query2, cert2Values);
-    const cert2WithStatus = cert2.rows.map((cert) => ({
-      ...cert,
-      validity_status: getValidityStatus(cert.expired_date),
-    }));
-
-    const combined = [...cert1WithStatus, ...cert2WithStatus];
+    const combined =
+      type === "1"
+        ? cert1WithStatus
+        : type === "2"
+        ? cert2WithStatus
+        : [...cert1WithStatus, ...cert2WithStatus];
 
     return sendSuccessResponse(res, "Success search certificates", combined);
   } catch (error) {
