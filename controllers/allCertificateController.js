@@ -22,7 +22,8 @@ exports.getAllCertificates = async (req, res) => {
             c.issued_date,
             c.expired_date,
             c.cert_file,
-            1 AS type
+            1 AS type,
+            'PT. Efortech Solusi Integrasi' AS issued_by
         FROM certificate c
         JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
         JOIN users u ON rp.user_id = u.user_id
@@ -48,7 +49,8 @@ exports.getAllCertificates = async (req, res) => {
         issued_date,
         expired_date,
         cert_file,
-        2 AS type
+        2 AS type,
+        issuer AS issued_by
       FROM user_certificates
       WHERE status = 2
     `;
@@ -132,7 +134,8 @@ exports.searchCertificates = async (req, res) => {
           c.issued_date,
           c.expired_date,
           c.cert_file,
-          1 AS type
+          1 AS type,
+          'PT. Efortech Solusi Integrasi' AS issued_by
         FROM certificate c
         JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
         JOIN users u ON rp.user_id = u.user_id
@@ -195,7 +198,8 @@ exports.searchCertificates = async (req, res) => {
           issued_date,
           expired_date,
           cert_file,
-          2 AS type
+          2 AS type,
+          issuer AS issued_by
         FROM user_certificates
       `;
 
