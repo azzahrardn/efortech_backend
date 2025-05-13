@@ -18,11 +18,11 @@ const router = express.Router();
 // GET - User profile route
 router.get("/me", verifyToken, getUserProfile);
 
-// GET - User profile (no token)
-router.get("/:userId", getUserProfileNoToken);
-
 // GET - Search User by Email
 router.get("/search", searchUserByEmail);
+
+// GET - User profile (no token)
+router.get("/:userId", getUserProfileNoToken);
 
 // POST - Change password route
 router.post("/change-password", verifyToken, changePassword);
