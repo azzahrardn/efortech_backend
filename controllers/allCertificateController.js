@@ -74,7 +74,7 @@ exports.getAllCertificates = async (req, res) => {
   }
 };
 
-// Endpoint for search certificates based on query param
+// Endpoint for search certificates based on query param with sort support
 exports.searchCertificates = async (req, res) => {
   const client = await db.connect();
   try {
@@ -84,44 +84,91 @@ exports.searchCertificates = async (req, res) => {
       certificate_title,
       issued_date,
       expired_date,
+      issued_date_from,
+      issued_date_to,
+      expired_date_from,
+      expired_date_to,
       q,
       type,
+      sort_by = "issued_date",
+      sort_order = "desc",
+      validity_status,
     } = req.query;
+
+    const allowedSortFields = [
+      "certificate_number",
+      "fullname",
+      "certificate_title",
+      "issued_date",
+      "expired_date",
+    ];
+    const safeSortBy = allowedSortFields.includes(sort_by)
+      ? sort_by
+      : "issued_date";
+    const safeSortOrder = sort_order?.toLowerCase() === "asc" ? "ASC" : "DESC";
 
     const cert1Conditions = [];
     const cert1Values = [];
 
-    const addCert1Condition = (field, value, tableAlias = "") => {
-      const placeholder = `$${cert1Values.length + 1}`;
-      const qualifiedField = tableAlias ? `${tableAlias}.${field}` : field;
-      cert1Conditions.push(`${qualifiedField}::text ILIKE ${placeholder}`);
+    const addCond = (field, value, tableAlias = "") => {
+      const idx = cert1Values.length + 1;
+      const col = tableAlias ? `${tableAlias}.${field}` : field;
+      cert1Conditions.push(`${col}::text ILIKE $${idx}`);
       cert1Values.push(`%${value}%`);
     };
 
     if (certificate_number)
-      addCert1Condition("certificate_number", certificate_number, "c");
-    if (fullname) addCert1Condition("fullname", fullname, "u");
-    if (certificate_title)
-      addCert1Condition("training_name", certificate_title, "t");
-    if (issued_date) addCert1Condition("issued_date", issued_date, "c");
-    if (expired_date) addCert1Condition("expired_date", expired_date, "c");
+      addCond("certificate_number", certificate_number, "c");
+    if (fullname) addCond("fullname", fullname, "u");
+    if (certificate_title) addCond("training_name", certificate_title, "t");
+    if (issued_date) {
+      cert1Conditions.push(`c.issued_date = $${cert1Values.length + 1}`);
+      cert1Values.push(issued_date);
+    }
+    if (expired_date) {
+      cert1Conditions.push(`c.expired_date = $${cert1Values.length + 1}`);
+      cert1Values.push(expired_date);
+    }
+    if (issued_date_from) {
+      cert1Conditions.push(`c.issued_date >= $${cert1Values.length + 1}`);
+      cert1Values.push(issued_date_from);
+    }
+    if (issued_date_to) {
+      cert1Conditions.push(`c.issued_date <= $${cert1Values.length + 1}`);
+      cert1Values.push(issued_date_to);
+    }
+    if (expired_date_from) {
+      cert1Conditions.push(`c.expired_date >= $${cert1Values.length + 1}`);
+      cert1Values.push(expired_date_from);
+    }
+    if (expired_date_to) {
+      cert1Conditions.push(`c.expired_date <= $${cert1Values.length + 1}`);
+      cert1Values.push(expired_date_to);
+    }
 
     if (q) {
-      const searchValue = `%${q}%`;
+      const search = `%${q}%`;
       cert1Conditions.push(`(
-          c.certificate_number ILIKE $${cert1Values.length + 1} OR
-          u.fullname ILIKE $${cert1Values.length + 2} OR
-          t.training_name ILIKE $${cert1Values.length + 3} OR
-          CAST(c.issued_date AS TEXT) ILIKE $${cert1Values.length + 4} OR
-          CAST(c.expired_date AS TEXT) ILIKE $${cert1Values.length + 5}
-        )`);
-      cert1Values.push(
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue
-      );
+        c.certificate_number ILIKE $${cert1Values.length + 1} OR
+        u.fullname ILIKE $${cert1Values.length + 2} OR
+        t.training_name ILIKE $${cert1Values.length + 3} OR
+        CAST(c.issued_date AS TEXT) ILIKE $${cert1Values.length + 4} OR
+        CAST(c.expired_date AS TEXT) ILIKE $${cert1Values.length + 5}
+      )`);
+      cert1Values.push(search, search, search, search, search);
+    }
+
+    if (validity_status) {
+      const validityArray = Array.isArray(validity_status)
+        ? validity_status
+        : [validity_status];
+      cert1Conditions.push(`(
+        CASE 
+          WHEN c.expired_date >= CURRENT_DATE THEN 'Valid'
+          ELSE 'Expired'
+        END
+      ) = ANY($${cert1Values.length + 1}::text[])`);
+      cert1Values.push(validityArray);
     }
 
     let cert1WithStatus = [];
@@ -150,6 +197,14 @@ exports.searchCertificates = async (req, res) => {
         query1 += ` WHERE ` + cert1Conditions.join(" AND ");
       }
 
+      query1 += ` ORDER BY ${
+        safeSortBy === "certificate_title"
+          ? "t.training_name"
+          : safeSortBy === "fullname"
+          ? "u.fullname"
+          : `c.${safeSortBy}`
+      } ${safeSortOrder}`;
+
       const cert1 = await client.query(query1, cert1Values);
       cert1WithStatus = cert1.rows.map((cert) => ({
         ...cert,
@@ -161,21 +216,43 @@ exports.searchCertificates = async (req, res) => {
       const cert2Conditions = [`status = 2`];
       const cert2Values = [];
 
-      const addCert2Condition = (field, value) => {
-        const placeholder = `$${cert2Values.length + 1}`;
-        cert2Conditions.push(`${field}::text ILIKE ${placeholder}`);
+      const addCert2Cond = (field, value) => {
+        const idx = cert2Values.length + 1;
+        cert2Conditions.push(`${field}::text ILIKE $${idx}`);
         cert2Values.push(`%${value}%`);
       };
 
       if (certificate_number)
-        addCert2Condition("certificate_number", certificate_number);
-      if (fullname) addCert2Condition("fullname", fullname);
-      if (certificate_title) addCert2Condition("cert_type", certificate_title);
-      if (issued_date) addCert2Condition("issued_date", issued_date);
-      if (expired_date) addCert2Condition("expired_date", expired_date);
+        addCert2Cond("certificate_number", certificate_number);
+      if (fullname) addCert2Cond("fullname", fullname);
+      if (certificate_title) addCert2Cond("cert_type", certificate_title);
+      if (issued_date) {
+        cert2Conditions.push(`issued_date = $${cert2Values.length + 1}`);
+        cert2Values.push(issued_date);
+      }
+      if (expired_date) {
+        cert2Conditions.push(`expired_date = $${cert2Values.length + 1}`);
+        cert2Values.push(expired_date);
+      }
+      if (issued_date_from) {
+        cert2Conditions.push(`issued_date >= $${cert2Values.length + 1}`);
+        cert2Values.push(issued_date_from);
+      }
+      if (issued_date_to) {
+        cert2Conditions.push(`issued_date <= $${cert2Values.length + 1}`);
+        cert2Values.push(issued_date_to);
+      }
+      if (expired_date_from) {
+        cert2Conditions.push(`expired_date >= $${cert2Values.length + 1}`);
+        cert2Values.push(expired_date_from);
+      }
+      if (expired_date_to) {
+        cert2Conditions.push(`expired_date <= $${cert2Values.length + 1}`);
+        cert2Values.push(expired_date_to);
+      }
 
       if (q) {
-        const searchValue = `%${q}%`;
+        const search = `%${q}%`;
         cert2Conditions.push(`(
           certificate_number ILIKE $${cert2Values.length + 1} OR
           fullname ILIKE $${cert2Values.length + 2} OR
@@ -183,13 +260,19 @@ exports.searchCertificates = async (req, res) => {
           CAST(issued_date AS TEXT) ILIKE $${cert2Values.length + 4} OR
           CAST(expired_date AS TEXT) ILIKE $${cert2Values.length + 5}
         )`);
-        cert2Values.push(
-          searchValue,
-          searchValue,
-          searchValue,
-          searchValue,
-          searchValue
-        );
+        cert2Values.push(search, search, search, search, search);
+      }
+      if (validity_status) {
+        const validityArray = Array.isArray(validity_status)
+          ? validity_status
+          : [validity_status];
+        cert2Conditions.push(`(
+          CASE 
+            WHEN expired_date >= CURRENT_DATE THEN 'Valid'
+            ELSE 'Expired'
+          END
+        ) = ANY($${cert2Values.length + 1}::text[])`);
+        cert2Values.push(validityArray);
       }
 
       let query2 = `
@@ -210,6 +293,10 @@ exports.searchCertificates = async (req, res) => {
         query2 += ` WHERE ` + cert2Conditions.join(" AND ");
       }
 
+      query2 += ` ORDER BY ${
+        safeSortBy === "certificate_title" ? "cert_type" : safeSortBy
+      } ${safeSortOrder}`;
+
       const cert2 = await client.query(query2, cert2Values);
       cert2WithStatus = cert2.rows.map((cert) => ({
         ...cert,
@@ -224,10 +311,10 @@ exports.searchCertificates = async (req, res) => {
         ? cert2WithStatus
         : [...cert1WithStatus, ...cert2WithStatus];
 
-    return sendSuccessResponse(res, "Success search certificates", combined);
-  } catch (error) {
-    console.error("Error searching certificates:", error);
-    return sendErrorResponse(res, 500, "Failed to search certificates");
+    return sendSuccessResponse(res, "Certificates fetched", combined);
+  } catch (err) {
+    console.error("Error fetching certificates:", err);
+    return sendErrorResponse(res, 500, "Failed to fetch certificates");
   } finally {
     client.release();
   }
