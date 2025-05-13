@@ -62,19 +62,6 @@ exports.getPartnerById = async (req, res) => {
   }
 };
 
-// Get partners visible to user (only active)
-exports.getActivePartners = async (req, res) => {
-  try {
-    const result = await db.query(
-      "SELECT * FROM partners WHERE status = 1 ORDER BY partner_name ASC"
-    );
-    return sendSuccessResponse(res, "Active partners fetched", result.rows);
-  } catch (error) {
-    console.error("Error fetching active partners:", error);
-    return sendErrorResponse(res, "Failed to fetch active partners");
-  }
-};
-
 // Add new partner
 exports.addPartner = async (req, res) => {
   const { partner_name, category, status } = req.body;
@@ -186,5 +173,70 @@ exports.softDeletePartner = async (req, res) => {
   } catch (error) {
     console.error("Error soft-deleting partner:", error);
     return sendErrorResponse(res, "Failed to soft-delete partner");
+  }
+};
+
+// Search and filter partners
+exports.searchPartners = async (req, res) => {
+  try {
+    const { category, status, search, sortBy, sortOrder } = req.query;
+
+    const conditions = [];
+    const values = [];
+    let index = 1;
+
+    // Filter category
+    if (category !== undefined) {
+      const categoryInt = parseInt(category);
+      if (isNaN(categoryInt)) {
+        return sendBadRequestResponse(
+          res,
+          "Invalid category value. Must be an integer."
+        );
+      }
+      conditions.push(`category = $${index++}`);
+      values.push(categoryInt);
+    }
+
+    // Filter status
+    if (status !== undefined) {
+      conditions.push(`status = $${index++}`);
+      values.push(Number(status));
+    }
+
+    // Search by name
+    if (search) {
+      conditions.push(`partner_name ILIKE $${index++}`);
+      values.push(`%${search}%`);
+    }
+
+    // Default sort: created_at DESC
+    let sortClause = `ORDER BY created_at DESC`;
+    if (sortBy === "created_at" || sortBy === "updated_at") {
+      const safeOrder =
+        sortOrder && sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
+      sortClause = `ORDER BY ${sortBy} ${safeOrder}`;
+    }
+
+    // Combine conditions
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const query = `
+      SELECT * FROM partners
+      ${whereClause}
+      ${sortClause}
+    `;
+
+    const result = await db.query(query, values);
+
+    return sendSuccessResponse(
+      res,
+      "Partners fetched with filters successfully",
+      result.rows
+    );
+  } catch (error) {
+    console.error("Error searching partners:", error);
+    return sendErrorResponse(res, "Failed to search partners");
   }
 };
