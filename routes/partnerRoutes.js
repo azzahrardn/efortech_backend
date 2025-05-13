@@ -7,6 +7,7 @@ const {
   editPartner,
   deletePartner,
   softDeletePartner,
+  searchPartners,
 } = require("../controllers/partnerController");
 const uploadFile = require("../middlewares/imageUpload");
 const {
@@ -19,6 +20,9 @@ router.get("/", getAllPartners);
 
 // Add a new partner
 router.post("/", addPartner);
+
+// Search or filter partner
+router.get("/search", searchPartners);
 
 // Get partner details by ID
 router.get("/:id", getPartnerById);
@@ -34,19 +38,19 @@ router.put("/archive/:id", softDeletePartner);
 
 // Upload partner logo
 router.post("/partner_logo", uploadFile, (req, res) => {
-    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
-      return sendErrorResponse(res, "No image uploaded");
-    }
-  
-    const uploadedImage = req.files[0];
-  
-    if (!uploadedImage.cloudStoragePublicUrl) {
-      return sendErrorResponse(res, "Upload failed: No public URL found");
-    }
-  
-    return sendSuccessResponse(res, "Upload successful", {
-      imageUrl: uploadedImage.cloudStoragePublicUrl,
-    });
-  });  
+  if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+    return sendErrorResponse(res, "No image uploaded");
+  }
+
+  const uploadedImage = req.files[0];
+
+  if (!uploadedImage.cloudStoragePublicUrl) {
+    return sendErrorResponse(res, "Upload failed: No public URL found");
+  }
+
+  return sendSuccessResponse(res, "Upload successful", {
+    imageUrl: uploadedImage.cloudStoragePublicUrl,
+  });
+});
 
 module.exports = router;
