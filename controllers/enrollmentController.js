@@ -1,5 +1,4 @@
 const db = require("../config/db");
-const { v4: uuidv4 } = require("uuid");
 const {
   sendSuccessResponse,
   sendErrorResponse,
@@ -96,10 +95,9 @@ exports.updateAttendanceStatus = async (req, res) => {
 
 // Function to update attendance status for multiple participants
 exports.updateMultipleAttendanceStatus = async (req, res) => {
-  const { registration_participant_ids } = req.body; // List of registration_participant_ids
-  const { attendance_status } = req.body; // attendance_status (true/false)
+  const { registration_participant_ids } = req.body;
+  const { attendance_status } = req.body;
 
-  // Basic validation
   if (
     !Array.isArray(registration_participant_ids) ||
     registration_participant_ids.length === 0
@@ -117,42 +115,92 @@ exports.updateMultipleAttendanceStatus = async (req, res) => {
   const client = await db.connect();
 
   try {
-    // Check if all participants exist in the registration_participant table
-    const participantsCheck = await client.query(
+    // Get participant and registration status data
+    const { rows: participants } = await client.query(
       `SELECT rp.registration_participant_id, rp.registration_id, r.status
        FROM registration_participant rp
        JOIN registration r ON rp.registration_id = r.registration_id
-       WHERE rp.registration_participant_id = ANY($1)`, // Using ANY to check for multiple IDs
+       WHERE rp.registration_participant_id = ANY($1)`,
       [registration_participant_ids]
     );
 
-    if (participantsCheck.rows.length !== registration_participant_ids.length) {
+    if (participants.length !== registration_participant_ids.length) {
       return sendErrorResponse(res, "Some participants not found", 404);
     }
 
-    // Ensure all the selected registrations have status 4 (completed) before updating attendance status
-    const incompleteRegistrations = participantsCheck.rows.filter(
-      (row) => row.status !== 4
-    );
-    if (incompleteRegistrations.length > 0) {
+    const incomplete = participants.filter((p) => p.status !== 4);
+    if (incomplete.length > 0) {
       return sendBadRequestResponse(
         res,
         "Attendance status can only be updated for completed registrations (status 4)."
       );
     }
 
-    // Update the attendance status for all selected participants
-    const attendanceStatusValue = attendance_status ? true : false;
+    const certsRes = await client.query(
+      `SELECT registration_participant_id, certificate_id 
+       FROM certificate 
+       WHERE registration_participant_id = ANY($1)`,
+      [registration_participant_ids]
+    );
+    const certMap = new Map(
+      certsRes.rows.map((row) => [
+        row.registration_participant_id,
+        row.certificate_id,
+      ])
+    );
+
+    const certsToGenerate = [];
+    const certsToDelete = [];
+
+    for (const p of participants) {
+      const hasCert = certMap.has(p.registration_participant_id);
+
+      if (attendance_status === true && hasCert) {
+        return sendBadRequestResponse(
+          res,
+          `Certificate already exists for participant ID ${p.registration_participant_id}`
+        );
+      }
+
+      if (attendance_status === false && hasCert) {
+        certsToDelete.push(certMap.get(p.registration_participant_id));
+      }
+
+      if (attendance_status === true && !hasCert) {
+        certsToGenerate.push(p.registration_participant_id);
+      }
+    }
+
+    // Delete certificate if needed
+    if (certsToDelete.length > 0) {
+      await client.query(
+        `DELETE FROM certificate WHERE certificate_id = ANY($1)`,
+        [certsToDelete]
+      );
+    }
+
+    // Update attendance
     await client.query(
       `UPDATE registration_participant
        SET attendance_status = $1
        WHERE registration_participant_id = ANY($2)`,
-      [attendanceStatusValue, registration_participant_ids]
+      [attendance_status, registration_participant_ids]
     );
+
+    // Generate certificate if needed
+    const generatedCertificates = [];
+    for (const id of certsToGenerate) {
+      const cert = await generateCertificate(id, new Date());
+      if (cert) generatedCertificates.push(cert);
+    }
 
     return sendSuccessResponse(
       res,
-      "Attendance status updated successfully for multiple participants"
+      `Attendance status updated successfully for ${registration_participant_ids.length} participants`,
+      {
+        generated_certificates: generatedCertificates,
+        deleted_certificates: certsToDelete,
+      }
     );
   } catch (err) {
     console.error("Update multiple attendance status error:", err);
