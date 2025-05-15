@@ -28,6 +28,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const userCertificateRoutes = require("./routes/userCertificateRoutes");
 const allCertificateRoutes = require("./routes/allCertificateRoutes");
 const partnerRoutes = require("./routes/partnerRoutes");
+const emailRoutes = require("./routes/emailRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -43,6 +44,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ucertificate", userCertificateRoutes);
 app.use("/api/certificates", allCertificateRoutes);
 app.use("/api/partner", partnerRoutes);
+app.use("/api/email", emailRoutes);
 
 // Test API
 app.get("/api/message", (req, res) => {
