@@ -5,13 +5,13 @@ const {
   sendErrorResponse,
   sendBadRequestResponse,
 } = require("../utils/responseUtils");
+const { generateCertificate } = require("./certificateController");
 
 // Function to update attendance status for a participant
 exports.updateAttendanceStatus = async (req, res) => {
-  const { registration_participant_id } = req.params; // registration_participant_id as parameter
-  const { attendance_status } = req.body; // attendance_status (true/false)
+  const { registration_participant_id } = req.params;
+  const { attendance_status } = req.body;
 
-  // Basic validation
   if (attendance_status === undefined) {
     return sendBadRequestResponse(res, "Attendance status is required");
   }
@@ -19,12 +19,11 @@ exports.updateAttendanceStatus = async (req, res) => {
   const client = await db.connect();
 
   try {
-    // Check if the participant exists in the registration_participant table
     const participantCheck = await client.query(
       `SELECT rp.registration_id, r.status 
-         FROM registration_participant rp
-         JOIN registration r ON rp.registration_id = r.registration_id
-         WHERE rp.registration_participant_id = $1`,
+       FROM registration_participant rp
+       JOIN registration r ON rp.registration_id = r.registration_id
+       WHERE rp.registration_participant_id = $1`,
       [registration_participant_id]
     );
 
@@ -34,7 +33,6 @@ exports.updateAttendanceStatus = async (req, res) => {
 
     const { registration_id, status } = participantCheck.rows[0];
 
-    // Ensure registration status is 4 (completed) before allowing attendance status update
     if (status !== 4) {
       return sendBadRequestResponse(
         res,
@@ -42,16 +40,27 @@ exports.updateAttendanceStatus = async (req, res) => {
       );
     }
 
-    // Update the attendance status for the participant
-    const attendanceStatusValue = attendance_status ? true : false;
     await client.query(
       `UPDATE registration_participant 
-     SET attendance_status = $1 
-     WHERE registration_participant_id = $2`,
-      [attendanceStatusValue, registration_participant_id]
+       SET attendance_status = $1 
+       WHERE registration_participant_id = $2`,
+      [attendance_status ? true : false, registration_participant_id]
     );
 
-    return sendSuccessResponse(res, "Attendance status updated successfully");
+    let certificateData = null;
+
+    if (attendance_status === true) {
+      certificateData = await generateCertificate(
+        registration_participant_id,
+        new Date()
+      );
+    }
+
+    return sendSuccessResponse(
+      res,
+      "Attendance status updated successfully!",
+      certificateData
+    );
   } catch (err) {
     console.error("Update attendance status error:", err);
     return sendErrorResponse(res, "Failed to update attendance status");
@@ -262,6 +271,10 @@ exports.getCompletedParticipants = async (req, res) => {
         r.*,
         t.training_id, 
         t.training_name,
+        c.certificate_id,
+        c.certificate_number,
+        c.issued_date,
+        c.expired_date,
         EXISTS (
           SELECT 1 FROM review v 
           WHERE v.registration_participant_id = rp.registration_participant_id
@@ -270,6 +283,7 @@ exports.getCompletedParticipants = async (req, res) => {
       JOIN registration r ON rp.registration_id = r.registration_id
       JOIN users u ON rp.user_id = u.user_id
       JOIN training t ON r.training_id = t.training_id
+      LEFT JOIN certificate c ON c.registration_participant_id = rp.registration_participant_id
       ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
       ORDER BY ${orderByField} ${orderDirection}
     `;
