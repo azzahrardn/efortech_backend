@@ -24,6 +24,69 @@ const generateCustomId = (prefix) => {
   return `${prefix}-${timestamp}-${randomStr}`; // Format: PREFIX-YYYYMMDDHHMM-RANDOM
 };
 
+// Endpoint to Generate Certificate Number
+const generateCertificateNumber = async () => {
+  const now = new Date();
+  now.setHours(now.getHours() + 7); // UTC+7
+  const YYMM =
+    now.getFullYear().toString().slice(2) +
+    String(now.getMonth() + 1).padStart(2, "0");
+
+  let candidate;
+  let isUnique = false;
+
+  while (!isUnique) {
+    const randomStr = [...Array(8)]
+      .map(() => Math.random().toString(36).charAt(2).toUpperCase())
+      .join("");
+
+    candidate = YYMM + randomStr;
+
+    const { rows } = await db.query(
+      `SELECT 1 FROM certificate WHERE certificate_number = $1
+       UNION
+       SELECT 1 FROM user_certificates WHERE certificate_number = $1`,
+      [candidate]
+    );
+
+    if (rows.length === 0) {
+      isUnique = true;
+    }
+  }
+
+  return candidate;
+};
+
+// Endpoint to generate and insert certificate
+exports.generateCertificate = async (
+  registration_participant_id,
+  issued_date
+) => {
+  try {
+    const certificate_number = await generateCertificateNumber();
+    const certificate_id = generateCustomId("CERT");
+
+    await db.query(
+      `INSERT INTO certificate (certificate_id, certificate_number, registration_participant_id, issued_date)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        certificate_id,
+        certificate_number,
+        registration_participant_id,
+        issued_date,
+      ]
+    );
+
+    return {
+      certificate_id,
+      certificate_number,
+    };
+  } catch (error) {
+    console.error("Certificate generation error:", error);
+    throw error;
+  }
+};
+
 // Controller function to create a new certificate
 exports.createCertificate = async (req, res) => {
   // Extract input data from request body
