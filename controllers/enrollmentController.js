@@ -31,7 +31,7 @@ exports.updateAttendanceStatus = async (req, res) => {
       return sendErrorResponse(res, "Participant not found", 404);
     }
 
-    const { registration_id, status } = participantCheck.rows[0];
+    const { status } = participantCheck.rows[0];
 
     if (status !== 4) {
       return sendBadRequestResponse(
@@ -40,15 +40,40 @@ exports.updateAttendanceStatus = async (req, res) => {
       );
     }
 
+    // Check if certificate already exists for this participant
+    const certCheck = await client.query(
+      `SELECT certificate_id FROM certificate WHERE registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    const existingCertificate = certCheck.rows[0];
+
+    if (attendance_status === true && existingCertificate) {
+      // If trying to mark as attended but certificate already exists, return error
+      return sendBadRequestResponse(
+        res,
+        "Certificate already exists for this participant."
+      );
+    }
+
+    if (attendance_status === false && existingCertificate) {
+      // If unmarking attendance and certificate exists, delete the certificate
+      await client.query(`DELETE FROM certificate WHERE certificate_id = $1`, [
+        existingCertificate.certificate_id,
+      ]);
+    }
+
+    // Update the attendance status
     await client.query(
       `UPDATE registration_participant 
        SET attendance_status = $1 
        WHERE registration_participant_id = $2`,
-      [attendance_status ? true : false, registration_participant_id]
+      [attendance_status, registration_participant_id]
     );
 
     let certificateData = null;
 
+    // If attendance is marked true, generate a certificate
     if (attendance_status === true) {
       certificateData = await generateCertificate(
         registration_participant_id,
