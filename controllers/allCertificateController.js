@@ -29,6 +29,7 @@ exports.getAllCertificates = async (req, res) => {
         JOIN users u ON rp.user_id = u.user_id
         JOIN registration r ON rp.registration_id = r.registration_id
         JOIN training t ON r.training_id = t.training_id
+        WHERE c.cert_file IS NOT NULL AND c.cert_file <> ''
     `;
 
     const { rows: cert1 } = await client.query(query1);
@@ -192,6 +193,8 @@ exports.searchCertificates = async (req, res) => {
         JOIN registration r ON rp.registration_id = r.registration_id
         JOIN training t ON r.training_id = t.training_id
       `;
+
+      cert1Conditions.push(`c.cert_file IS NOT NULL AND c.cert_file <> ''`);
 
       if (cert1Conditions.length > 0) {
         query1 += ` WHERE ` + cert1Conditions.join(" AND ");
