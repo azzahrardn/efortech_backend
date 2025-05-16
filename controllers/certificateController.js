@@ -199,6 +199,107 @@ exports.createCertificate = async (req, res) => {
   }
 };
 
+// Controller function to update certificate data
+exports.updateCertificate = async (req, res) => {
+  const {
+    certificate_id,
+    issued_date,
+    expired_date,
+    cert_file,
+    registration_participant_id,
+  } = req.body;
+
+  // Validate required input
+  if (
+    !certificate_id ||
+    !registration_participant_id ||
+    !issued_date ||
+    !expired_date ||
+    !cert_file
+  ) {
+    return sendBadRequestResponse(res, "All required fields must be complete");
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Check if certificate exists
+    const certRes = await client.query(
+      `SELECT * FROM certificate WHERE certificate_id = $1`,
+      [certificate_id]
+    );
+
+    if (certRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return sendBadRequestResponse(res, "Certificate not found");
+    }
+
+    // Update certificate fields that are provided
+    await client.query(
+      `UPDATE certificate 
+       SET 
+         issued_date = COALESCE($1, issued_date),
+         expired_date = COALESCE($2, expired_date),
+         cert_file = COALESCE($3, cert_file)
+       WHERE certificate_id = $4 AND registration_participant_id = $5`,
+      [
+        issued_date,
+        expired_date,
+        cert_file,
+        certificate_id,
+        registration_participant_id,
+      ]
+    );
+
+    // Ensure has_certificate is true
+    await client.query(
+      `UPDATE registration_participant 
+       SET has_certificate = true 
+       WHERE registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    // Get training_id for graduates recalculation
+    const trainingRes = await client.query(
+      `SELECT r.training_id 
+       FROM registration_participant rp
+       JOIN registration r ON rp.registration_id = r.registration_id
+       WHERE rp.registration_participant_id = $1`,
+      [registration_participant_id]
+    );
+
+    const training_id = trainingRes.rows[0]?.training_id;
+    if (!training_id) {
+      await client.query("ROLLBACK");
+      return sendBadRequestResponse(res, "Training not found");
+    }
+
+    // Recalculate graduates
+    await client.query(
+      `UPDATE training SET graduates = (
+         SELECT COUNT(*) 
+         FROM registration_participant rp
+         JOIN registration r ON rp.registration_id = r.registration_id
+         WHERE rp.has_certificate = true AND r.training_id = $1
+       )
+       WHERE training_id = $1`,
+      [training_id]
+    );
+
+    await client.query("COMMIT");
+    return sendSuccessResponse(res, "Certificate updated successfully", {
+      certificate_id,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Update certificate error:", err);
+    return sendErrorResponse(res, "Failed to update certificate", err.message);
+  } finally {
+    client.release();
+  }
+};
+
 // Function to fetch all certificates
 exports.getCertificates = async (req, res) => {
   const client = await db.connect();
