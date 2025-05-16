@@ -6,6 +6,7 @@ const {
   getCertificateById,
   searchCertificates,
   deleteCertificate,
+  updateCertificate,
 } = require("../controllers/certificateController");
 const uploadFile = require("../middlewares/fileUpload");
 const {
@@ -15,6 +16,9 @@ const {
 
 // POST /api/certificate - Create a new training certificate
 router.post("/", createCertificate);
+
+// PUT /api/certificate/update - Update existing certificate
+router.put("/update", updateCertificate);
 
 // GET /api/certificate - Get all certificates
 router.get("/", getCertificates);
