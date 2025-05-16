@@ -5,6 +5,7 @@ const {
   sendErrorResponse,
   sendBadRequestResponse,
 } = require("../utils/responseUtils");
+const axios = require("axios");
 
 const getCertificateStatus = (expiredDate) => {
   const today = new Date();
@@ -408,6 +409,44 @@ exports.getCertificateById = async (req, res) => {
   } catch (err) {
     console.error("Get certificate by ID error:", err);
     return sendErrorResponse(res, "Failed to fetch certificate");
+  } finally {
+    client.release();
+  }
+};
+
+// Controller function for download certificate by registration_participant_id
+exports.getDownloadCertificate = async (req, res) => {
+  const client = await db.connect();
+  const { registration_participant_id } = req.params;
+
+  try {
+    const query = `
+      SELECT cert_file FROM certificate WHERE registration_participant_id = $1
+    `;
+
+    const result = await client.query(query, [registration_participant_id]);
+
+    if (result.rows.length === 0 || !result.rows[0].cert_file) {
+      return res.status(404).send("Certificate file not found");
+    }
+
+    const certificate = result.rows[0];
+
+    // Ambil file dari GCS (streaming)
+    const fileRes = await axios.get(certificate.cert_file, {
+      responseType: "stream",
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${certificate.certificate_number}-${certificate.fullname}-${certificate.training_name}.pdf"`
+    );
+
+    fileRes.data.pipe(res);
+  } catch (err) {
+    console.error("Download error:", err);
+    res.status(500).send("Failed to fetch certificate");
   } finally {
     client.release();
   }
