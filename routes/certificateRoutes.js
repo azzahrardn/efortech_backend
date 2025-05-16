@@ -4,6 +4,7 @@ const {
   createCertificate,
   getCertificates,
   getCertificateById,
+  getDownloadCertificate,
   searchCertificates,
   deleteCertificate,
   updateCertificate,
@@ -28,6 +29,9 @@ router.get("/search", searchCertificates);
 
 // GET /api/certificate/:certificate_id - Get a certificate by ID
 router.get("/:certificate_id", getCertificateById);
+
+// GET /api/certificate/download/:registration_participant_id - Get a certificate by ID Participant
+router.get("/download/:registration_participant_id", getDownloadCertificate);
 
 // DELETE /api/certificate/:certificate_id - Delete a certificate by ID
 router.delete("/:certificate_id", deleteCertificate);
