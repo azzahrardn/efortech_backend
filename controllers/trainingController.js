@@ -220,25 +220,7 @@ exports.softDeleteTraining = async (req, res) => {
   }
 };
 
-/* Get all trainings with optional filters and sorting
-----------------------------------------------------
-Query Parameters:
-- status: Filter by training status (default: "1" → active)
-  > Possible values: "1" (active), "2" (archived), "all" (no filter)
-- level: Filter by training level (e.g., 1 = Beginner, 2 = Intermediate, 3 = Advanced)
-- search: Search by training_name or description (case-insensitive, partial match)
-- skill: Filter by skills (checks if value exists in `skills[]` array using ILIKE)
-- sort_by: Column to sort by (allowed: "created_date", "training_name", "level"; default: "created_date")
-- sort_order: Sort direction ("asc" or "desc"; default: "desc")
-
-Example:
-GET /api/training?status=1&level=2&search=web&skill=React&sort_by=training_name&sort_order=asc
-
-Notes:
-- `skills` column is assumed to be an array.
-- `search` performs partial match on both `training_name` and `description` using ILIKE.
-- Returns list of trainings with calculated `final_price` (after discount, if any).
-*/
+// Get all trainings with optional filters and sorting
 exports.getTrainings = async (req, res) => {
   try {
     const {
@@ -291,8 +273,14 @@ exports.getTrainings = async (req, res) => {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    // Validate sort options and apply sorting
-    const allowedSortBy = ["created_date", "training_name", "level"];
+    // Extend allowed sort options
+    const allowedSortBy = [
+      "created_date",
+      "training_name",
+      "level",
+      "graduates",
+      "rating",
+    ];
     const allowedSortOrder = ["asc", "desc"];
 
     const sortBy = allowedSortBy.includes(sort_by) ? sort_by : "created_date";
