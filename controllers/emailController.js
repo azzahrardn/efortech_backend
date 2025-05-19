@@ -6,7 +6,23 @@ const {
   sendBadRequestResponse,
 } = require("../utils/responseUtils");
 const { sendEmail } = require("../utils/mailer");
-const { certificateIssuedTemplate } = require("../utils/emailTemplates");
+const {
+  certificateIssuedTemplate,
+  certificateValidationTemplate,
+} = require("../utils/emailTemplates");
+
+const getStatusText = (status) => {
+  switch (status) {
+    case 1:
+      return "Pending";
+    case 2:
+      return "Accepted";
+    case 3:
+      return "Rejected";
+    default:
+      return "Unknown";
+  }
+};
 
 // Endpoint for get registration training certificate email preview
 exports.previewTrainingCertificateEmail = async (req, res) => {
@@ -124,5 +140,59 @@ exports.sendTrainingCertificateEmail = async (req, res) => {
   } catch (err) {
     console.error("Send email error:", err);
     return sendErrorResponse(res, "Failed to send email", err.message);
+  }
+};
+
+// Endpoint for get user upload certificate validation email preview
+exports.previewUserUploadCertificateValidationEmail = async (req, res) => {
+  const { user_certificate_id, certificate_number, status, notes } = req.body;
+
+  try {
+    const query = `
+      SELECT 
+        u.fullname AS user_name,
+        u.email,
+        uc.cert_type,
+        uc.issued_date,
+        uc.expired_date
+      FROM user_certificates uc
+      JOIN users u ON uc.user_id = u.user_id
+      WHERE uc.certificate_number = $1 AND user_certificate_id = $2
+    `;
+
+    const { rows } = await db.query(query, [
+      certificate_number,
+      user_certificate_id,
+    ]);
+
+    if (rows.length === 0) {
+      return sendErrorResponse(
+        res,
+        "Certificate not found or not a user-uploaded certificate"
+      );
+    }
+
+    const { user_name, email, cert_type, issued_date, expired_date } = rows[0];
+
+    const { subject, html } = certificateValidationTemplate({
+      userName: user_name,
+      certificateNumber: certificate_number,
+      certificateName: cert_type,
+      issuedDate: issued_date.toISOString().split("T")[0],
+      expiredDate: expired_date
+        ? expired_date.toISOString().split("T")[0]
+        : "No Expiry Date",
+      status: getStatusText(status),
+      notes,
+    });
+
+    return sendSuccessResponse(res, "Preview generated", {
+      to: email,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.error(err);
+    return sendErrorResponse(res, "Internal server error", err.message);
   }
 };
