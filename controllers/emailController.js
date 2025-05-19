@@ -196,3 +196,59 @@ exports.previewUserUploadCertificateValidationEmail = async (req, res) => {
     return sendErrorResponse(res, "Internal server error", err.message);
   }
 };
+
+// Endpoint for send user upload certificate validation email
+exports.sendUserUploadCertificateValidationEmail = async (req, res) => {
+  const { user_certificate_id, certificate_number, status, notes } = req.body;
+
+  try {
+    const query = `
+      SELECT 
+        u.fullname AS user_name,
+        u.email,
+        uc.cert_type,
+        uc.issued_date,
+        uc.expired_date
+      FROM user_certificates uc
+      JOIN users u ON uc.user_id = u.user_id
+      WHERE uc.certificate_number = $1 AND user_certificate_id = $2
+    `;
+
+    const { rows } = await db.query(query, [
+      certificate_number,
+      user_certificate_id,
+    ]);
+
+    if (rows.length === 0) {
+      return sendErrorResponse(
+        res,
+        "Certificate not found or not a user-uploaded certificate"
+      );
+    }
+
+    const { user_name, email, cert_type, issued_date, expired_date } = rows[0];
+
+    const { subject, html } = certificateValidationTemplate({
+      userName: user_name,
+      certificateNumber: certificate_number,
+      certificateName: cert_type,
+      issuedDate: issued_date.toISOString().split("T")[0],
+      expiredDate: expired_date
+        ? expired_date.toISOString().split("T")[0]
+        : "No Expiry Date",
+      status: getStatusText(status),
+      notes,
+    });
+
+    const info = await sendEmail({ to: email, subject, html });
+
+    return sendSuccessResponse(res, "Email sent successfully", {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      to: email,
+    });
+  } catch (err) {
+    console.error("Send email error:", err);
+    return sendErrorResponse(res, "Failed to send email", err.message);
+  }
+};
