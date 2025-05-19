@@ -88,22 +88,29 @@ exports.addArticle = async (req, res) => {
 // Get all articles
 exports.getArticles = async (req, res) => {
   try {
-    const { rows: articles } = await db.query(
-      "SELECT * FROM articles ORDER BY create_date DESC"
-    );
+    const {
+      sort_by = "create_date", // default sort by create_date
+      sort_order = "desc", // default sort direction
+    } = req.query;
+
+    // Validasi input sort_by dan sort_order
+    const allowedSortBy = ["title", "create_date", "views"];
+    const allowedSortOrder = ["asc", "desc"];
+
+    const sortBy = allowedSortBy.includes(sort_by) ? sort_by : "create_date";
+    const sortOrder = allowedSortOrder.includes(sort_order.toLowerCase())
+      ? sort_order.toUpperCase()
+      : "DESC";
+
+    const query = `SELECT * FROM articles ORDER BY ${sortBy} ${sortOrder}`;
+    const { rows: articles } = await db.query(query);
 
     for (const article of articles) {
-      // Convert images from Buffer to base64 strings
-      if (article.images && Array.isArray(article.images)) {
-        article.images = Array.isArray(article.images) ? article.images : [];
-      } else {
-        article.images = [];
-      }
+      // Convert images from Buffer to base64 strings if necessary (currently not decoding binary)
+      article.images = Array.isArray(article.images) ? article.images : [];
 
-      // Ensure sources is array
+      // Ensure sources and tags are arrays
       article.sources = article.sources || [];
-
-      // Ensure tags is array
       article.tags = article.tags || [];
     }
 
@@ -330,7 +337,10 @@ exports.getArticlesByTag = async (req, res) => {
 exports.updateViewsArticle = async (req, res) => {
   const { article_id } = req.params;
   try {
-    await db.query("UPDATE articles SET views = views + 1 WHERE article_id = $1", [article_id]);
+    await db.query(
+      "UPDATE articles SET views = views + 1 WHERE article_id = $1",
+      [article_id]
+    );
     res.status(200).json({ message: "View incremented" });
   } catch (err) {
     res.status(500).json({ error: err.message });
