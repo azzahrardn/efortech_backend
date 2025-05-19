@@ -25,6 +25,7 @@ const getFolderFromPath = (reqPath) => {
   if (reqPath.includes("/user")) return "user_image";
   if (reqPath.includes("/training")) return "training_image";
   if (reqPath.includes("/partner")) return "partner_logo";
+  if (reqPath.includes("/home")) return "home_content";
   return "misc_image"; // fallback
 };
 
