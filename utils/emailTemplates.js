@@ -26,8 +26,8 @@ const certificateIssuedTemplate = ({
         </table>
 
         <p>You can download your certificate using the following link:<br/>
-        <a href="https://efortechedu.com/certificates/${certificateNumber}" target="_blank" style="color: #1a73e8;">
-          https://efortechedu.com/certificates/${certificateNumber}
+        <a href="https://efortechedu.com/certificate/${certificateNumber}" target="_blank" style="color: #1a73e8;">
+          https://efortechedu.com/certificate/${certificateNumber}
         </a></p>
 
         <p>We sincerely thank you for your active participation and commitment throughout the training.</p>
@@ -80,8 +80,8 @@ const certificateValidationTemplate = ({
         ${
           !isRejected
             ? `<p>You can view your certificate details at:<br/>
-               <a href="https://efortechedu.com/certificates/${certificateNumber}" target="_blank" style="color: #1a73e8;">
-               https://efortechedu.com/certificates/${certificateNumber}</a></p>`
+               <a href="https://efortechedu.com/certificate/${certificateNumber}" target="_blank" style="color: #1a73e8;">
+               https://efortechedu.com/certificate/${certificateNumber}</a></p>`
             : ""
         }
 
