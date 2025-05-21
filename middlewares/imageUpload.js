@@ -11,7 +11,7 @@ const bucket = storage.bucket(process.env.NEXT_PUBLIC_GCS_BUCKET_NAME);
 
 const multerUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 1 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) {
       return cb(new Error("File must be an image"), false);
@@ -33,9 +33,7 @@ const uploadFile = (req, res, next) => {
   multerUpload(req, res, async (err) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
-        return res
-          .status(400)
-          .json(sendErrorResponse("File size exceeds 1MB limit"));
+        return sendErrorResponse(res, "File size exceeds 5MB limit");
       }
       if (err.message === "File must be an image") {
         return sendErrorResponse(res, "Only image files are allowed");
