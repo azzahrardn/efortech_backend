@@ -322,3 +322,109 @@ exports.searchCertificates = async (req, res) => {
     client.release();
   }
 };
+
+exports.getCertificateByNumber = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { number } = req.params;
+
+    // 1. Table `certificate` (type 1)
+    const query1 = `
+      SELECT 
+        c.certificate_id,
+        c.certificate_number,
+        u.user_id,
+        u.fullname,
+        u.user_photo,
+        t.*,
+        c.issued_date,
+        c.expired_date,
+        c.cert_file,
+        1 AS type,
+        'PT. Efortech Solusi Integrasi' AS issued_by
+      FROM certificate c
+      JOIN registration_participant rp ON c.registration_participant_id = rp.registration_participant_id
+      JOIN users u ON rp.user_id = u.user_id
+      JOIN registration r ON rp.registration_id = r.registration_id
+      JOIN training t ON r.training_id = t.training_id
+      WHERE c.certificate_number = $1
+    `;
+    const result1 = await client.query(query1, [number]);
+
+    if (result1.rowCount > 0) {
+      const cert = result1.rows[0];
+
+      const mappedCert = {
+        certificate_id: cert.certificate_id,
+        certificate_number: cert.certificate_number,
+        user_id: cert.user_id,
+        fullname: cert.fullname,
+        user_photo: cert.user_photo,
+        certificate_title: cert.training_name,
+        certificate_status: getValidityStatus(cert.expired_date),
+        issued_date: cert.issued_date,
+        expired_date: cert.expired_date,
+        completed_date: cert.completed_date,
+        cert_file: cert.cert_file,
+        issued_by: cert.issued_by,
+        type: cert.type,
+        training: {
+          training_id: cert.training_id,
+          training_name: cert.training_name,
+          description: cert.description,
+          level: cert.level,
+          duration: cert.duration,
+          training_fees: cert.training_fees,
+          discount: cert.discount,
+          validity_period: cert.validity_period,
+          term_condition: cert.term_condition,
+          status: cert.status,
+          graduates: cert.graduates,
+          rating: cert.rating,
+          images: cert.images,
+          skills: cert.skills,
+          created_by: cert.created_by,
+          created_date: cert.created_date,
+        },
+      };
+
+      return sendSuccessResponse(res, "Success get certificate", mappedCert);
+    }
+
+    // 2. Table `user_certificates` (type 2) + join users
+    const query2 = `
+      SELECT 
+        uc.user_certificate_id AS certificate_id,
+        uc.certificate_number,
+        uc.fullname,
+        uc.cert_type AS certificate_title,
+        uc.issued_date,
+        uc.expired_date,
+        uc.cert_file,
+        2 AS type,
+        uc.issuer AS issued_by,
+        u.user_id,
+        u.user_photo
+      FROM user_certificates uc
+      LEFT JOIN users u ON uc.user_id = u.user_id
+      WHERE uc.certificate_number = $1 AND uc.status = 2
+    `;
+    const result2 = await client.query(query2, [number]);
+
+    if (result2.rowCount > 0) {
+      const cert = result2.rows[0];
+      return sendSuccessResponse(res, "Success get user certificate", {
+        ...cert,
+        certificate_status: getValidityStatus(cert.expired_date),
+        training: null,
+      });
+    }
+
+    return sendErrorResponse(res, 404, "Certificate not found");
+  } catch (error) {
+    console.error("Error getting certificate by ID:", error);
+    return sendErrorResponse(res, 500, "Failed to get certificate");
+  } finally {
+    client.release();
+  }
+};

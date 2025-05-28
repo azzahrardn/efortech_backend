@@ -45,9 +45,7 @@ const uploadFile = (req, res, next) => {
   multerUpload(req, res, async (err) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
-        return res
-          .status(400)
-          .json(sendErrorResponse("File size exceeds 10MB limit"));
+        return sendErrorResponse(res, "File size exceeds 10MB limit");
       }
       if (err.message === "Only image, PDF or DOCX are allowed") {
         return sendErrorResponse(res, "Only image, PDF or DOCX are allowed");
