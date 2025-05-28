@@ -12,7 +12,8 @@ app.use(bodyParser.urlencoded({ extended: true, limit: "5mb" }));
 
 app.use(cors({ origin: [
     'http://localhost:3000',
-    'https://efortech-edu-nu.vercel.app'
+    'https://efortech-edu-nu.vercel.app',
+    'https://efortechedu-eight.vercel.app/'
   ]}));
 app.use(express.json());
 
